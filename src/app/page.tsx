@@ -4778,7 +4778,12 @@ if (claimingGift) return;
         />
       )}
       {founderMessageOpen && (
-        <FounderMessage onClose={() => setFounderMessageOpen(false)} />
+        <FounderMessage
+          onClose={() => setFounderMessageOpen(false)}
+          session={session}
+          hasClaimed={!!myBuilding?.claimed}
+          onSignIn={handleSignInWithRef}
+        />
       )}
 
       {/* Rabbit Quest Cinematic Overlay */}

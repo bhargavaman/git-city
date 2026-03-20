@@ -4,11 +4,13 @@ import { useRef, useEffect } from "react";
 
 const ACCENT = "#c8e64a";
 const CLICK_COLOR = "#64b5f6";
+const CONV_COLOR = "#ff9800";
 
 interface DailyData {
   day: string;
   impressions: number;
   clicks: number;
+  conversions?: number;
 }
 
 interface Props {
@@ -78,8 +80,15 @@ export function DailyChart({ data }: Props) {
       ctx.fillText(val >= 1000 ? `${(val / 1000).toFixed(0)}K` : String(val), padL - 8, y + 4);
     }
 
+    const convValues = data.map((d) => d.conversions ?? 0);
+    const maxConv = Math.max(...convValues, 1);
+    const hasConversions = convValues.some((v) => v > 0);
+
     drawLine(data.map((d) => d.impressions), maxImp, ACCENT);
     drawLine(data.map((d) => d.clicks), maxClk, CLICK_COLOR);
+    if (hasConversions) {
+      drawLine(convValues, maxConv, CONV_COLOR);
+    }
 
     // X-axis labels
     const step = Math.max(1, Math.floor(data.length / 6));
@@ -105,6 +114,13 @@ export function DailyChart({ data }: Props) {
     ctx.fillRect(padL + 100, 4, 10, 3);
     ctx.fillStyle = "#aaa";
     ctx.fillText("clicks", padL + 114, 9);
+
+    if (hasConversions) {
+      ctx.fillStyle = CONV_COLOR;
+      ctx.fillRect(padL + 168, 4, 10, 3);
+      ctx.fillStyle = "#aaa";
+      ctx.fillText("conversions", padL + 182, 9);
+    }
   }, [data]);
 
   if (data.length === 0) {

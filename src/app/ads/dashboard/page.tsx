@@ -21,6 +21,8 @@ interface AdData {
   impressions: number;
   clicks: number;
   cta_clicks: number;
+  conversions: number;
+  revenue_cents: number;
   ctr: string;
 }
 
@@ -30,14 +32,18 @@ interface DashboardData {
     impressions: number;
     clicks: number;
     cta_clicks: number;
+    conversions: number;
+    revenue_cents: number;
     ctr: string;
+    conv_rate: string;
     changes: {
       impressions: number;
       clicks: number;
       cta_clicks: number;
+      conversions: number;
     };
   };
-  daily: { day: string; impressions: number; clicks: number }[];
+  daily: { day: string; impressions: number; clicks: number; conversions: number }[];
 }
 
 const VALID_PERIODS = new Set(["7d", "30d", "90d", "all"]);
@@ -120,8 +126,16 @@ function DashboardContent() {
         </div>
       </div>
 
+      {/* Conversion tracking nudge */}
+      {totals.cta_clicks > 0 && totals.conversions === 0 && (
+        <div className="mt-4 border-[3px] px-4 py-3 text-sm normal-case" style={{ borderColor: "#ff9800", color: "#ff9800", backgroundColor: "#ff980010" }}>
+          You have {totals.cta_clicks.toLocaleString()} CTA clicks but no conversions tracked.{" "}
+          <Link href="/ads/dashboard/integration" className="underline">Set up conversion tracking</Link> to measure ROI.
+        </div>
+      )}
+
       {/* Stats cards */}
-      <div className={`mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 transition-opacity ${loading ? "opacity-50" : ""}`}>
+      <div className={`mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 transition-opacity ${loading ? "opacity-50" : ""}`}>
         <StatsCard
           label="Impressions"
           value={totals.impressions}
@@ -138,6 +152,12 @@ function DashboardContent() {
           change={period !== "all" ? totals.changes.cta_clicks : undefined}
         />
         <StatsCard label="CTR" value={totals.ctr} />
+        <StatsCard
+          label="Conversions"
+          value={totals.conversions}
+          change={period !== "all" ? totals.changes.conversions : undefined}
+        />
+        <StatsCard label="Conv. Rate" value={totals.conv_rate} />
       </div>
 
       {/* Chart */}

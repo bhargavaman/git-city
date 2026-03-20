@@ -7,6 +7,7 @@ const ACCENT = "#c8e64a";
 
 const NAV_ITEMS = [
   { href: "/ads/dashboard", label: "Overview" },
+  { href: "/ads/dashboard/integration", label: "Integration" },
   { href: "/ads/dashboard/api-keys", label: "API Keys" },
   { href: "/ads/dashboard/billing", label: "Billing" },
 ];

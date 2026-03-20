@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { SponsorConfig } from "./registry";
 import { trackLandmarkCardViewed, trackLandmarkCtaClicked } from "@/lib/himetrica";
-import { trackAdEvent } from "@/lib/skyAds";
+import { trackAdEvent, appendClickId } from "@/lib/skyAds";
 import { getLandmarkAdId } from "./landmarkAdIds";
 
 function buildUtmUrl(config: SponsorConfig): string {
@@ -120,10 +120,15 @@ export default function SponsoredCard({ config, onClose }: SponsoredCardProps) {
               href={ctaUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => {
+              onClick={async (e) => {
                 trackLandmarkCtaClicked(config.slug, ctaUrl);
                 const adId = getLandmarkAdId(config.slug);
-                if (adId) trackAdEvent(adId, "cta_click");
+                if (adId) {
+                  e.preventDefault();
+                  const clickId = await trackAdEvent(adId, "cta_click");
+                  const finalUrl = clickId ? appendClickId(ctaUrl, clickId) : ctaUrl;
+                  window.open(finalUrl, "_blank", "noopener,noreferrer");
+                }
               }}
               className="block w-full py-2 text-center text-[10px] font-bold uppercase tracking-wider border-2 transition-all hover:brightness-110"
               style={{

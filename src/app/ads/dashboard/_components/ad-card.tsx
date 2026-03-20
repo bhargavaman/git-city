@@ -22,6 +22,7 @@ interface Props {
     impressions: number;
     clicks: number;
     cta_clicks: number;
+    conversions: number;
   };
 }
 
@@ -58,7 +59,7 @@ export function AdCard({ ad }: Props) {
           {status}
         </span>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
         <div>
           <p className="text-base text-cream">{ad.impressions.toLocaleString()}</p>
           <p className="text-[10px] text-muted normal-case">impressions</p>
@@ -70,6 +71,10 @@ export function AdCard({ ad }: Props) {
         <div>
           <p className="text-base text-cream">{ctr}%</p>
           <p className="text-[10px] text-muted normal-case">CTR</p>
+        </div>
+        <div>
+          <p className="text-base text-cream">{ad.conversions.toLocaleString()}</p>
+          <p className="text-[10px] text-muted normal-case">conversions</p>
         </div>
       </div>
     </Link>

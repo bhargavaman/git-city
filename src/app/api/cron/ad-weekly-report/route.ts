@@ -51,17 +51,21 @@ export async function GET(request: NextRequest) {
       ]);
 
       // Per-ad totals
-      const adTotals = new Map<string, { impressions: number; engagements: number; linkClicks: number }>();
-      let totalImp = 0, totalEng = 0, totalLinks = 0;
+      const adTotals = new Map<string, { impressions: number; engagements: number; linkClicks: number; conversions: number; revenue_cents: number }>();
+      let totalImp = 0, totalEng = 0, totalLinks = 0, totalConv = 0, totalRev = 0;
 
       for (const row of currentResult.data ?? []) {
         const imp = Number(row.impressions);
         const eng = Number(row.clicks);
         const links = Number(row.cta_clicks);
-        adTotals.set(row.ad_id, { impressions: imp, engagements: eng, linkClicks: links });
+        const conv = Number(row.conversions ?? 0);
+        const rev = Number(row.revenue_cents ?? 0);
+        adTotals.set(row.ad_id, { impressions: imp, engagements: eng, linkClicks: links, conversions: conv, revenue_cents: rev });
         totalImp += imp;
         totalEng += eng;
         totalLinks += links;
+        totalConv += conv;
+        totalRev += rev;
       }
 
       // Skip if zero impressions
@@ -70,26 +74,31 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      let prevImp = 0, prevEng = 0, prevLinks = 0;
+      let prevImp = 0, prevEng = 0, prevLinks = 0, prevConv = 0;
       for (const row of prevResult.data ?? []) {
         prevImp += Number(row.impressions);
         prevEng += Number(row.clicks);
         prevLinks += Number(row.cta_clicks);
+        prevConv += Number(row.conversions ?? 0);
       }
 
       const totalClicks = totalEng + totalLinks;
 
       const adReports = ads.map((ad) => {
-        const t = adTotals.get(ad.id) ?? { impressions: 0, engagements: 0, linkClicks: 0 };
+        const t = adTotals.get(ad.id) ?? { impressions: 0, engagements: 0, linkClicks: 0, conversions: 0, revenue_cents: 0 };
         const adTotalClicks = t.engagements + t.linkClicks;
         return {
           brand: ad.brand || ad.text.slice(0, 30),
           impressions: t.impressions,
           engagements: t.engagements,
           linkClicks: t.linkClicks,
+          conversions: t.conversions,
           ctr: t.impressions > 0 ? ((adTotalClicks / t.impressions) * 100).toFixed(2) + "%" : "0%",
+          convRate: t.linkClicks > 0 ? ((t.conversions / t.linkClicks) * 100).toFixed(2) + "%" : "0%",
         };
       });
+
+      const convRate = totalLinks > 0 ? ((totalConv / totalLinks) * 100).toFixed(2) + "%" : "0%";
 
       await sendWeeklyAdReport({
         advertiserEmail: advertiser.email,
@@ -99,9 +108,11 @@ export async function GET(request: NextRequest) {
           impressions: totalImp,
           engagements: totalEng,
           linkClicks: totalLinks,
+          conversions: totalConv,
           ctr: totalImp > 0 ? ((totalClicks / totalImp) * 100).toFixed(2) + "%" : "0%",
+          convRate,
         },
-        prevTotals: { impressions: prevImp, engagements: prevEng, linkClicks: prevLinks },
+        prevTotals: { impressions: prevImp, engagements: prevEng, linkClicks: prevLinks, conversions: prevConv },
       });
 
       results.sent++;

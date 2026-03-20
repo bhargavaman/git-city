@@ -70,13 +70,40 @@ export function buildAdLink(ad: SkyAd): string | undefined {
   }
 }
 
-/** Fire a tracking beacon to the sky-ads track API (non-blocking). */
-export function trackAdEvent(adId: string, eventType: "impression" | "click" | "cta_click", githubLogin?: string) {
+/**
+ * Fire a tracking event to the sky-ads track API.
+ * For `cta_click`, uses fetch() to get back a click_id for conversion tracking.
+ * For other events, uses sendBeacon (non-blocking).
+ */
+export function trackAdEvent(adId: string, eventType: "impression" | "click", githubLogin?: string): void;
+export function trackAdEvent(adId: string, eventType: "cta_click", githubLogin?: string): Promise<string | null>;
+export function trackAdEvent(adId: string, eventType: "impression" | "click" | "cta_click", githubLogin?: string): void | Promise<string | null> {
   const body = JSON.stringify({ ad_id: adId, event_type: eventType, ...(githubLogin && { github_login: githubLogin }) });
+
+  if (eventType === "cta_click") {
+    // cta_click needs fetch() to read the click_id from response
+    return fetch("/api/sky-ads/track", { method: "POST", body, headers: { "Content-Type": "application/json" } })
+      .then((r) => r.json())
+      .then((d: { click_id?: string }) => d.click_id ?? null)
+      .catch(() => null);
+  }
+
+  // Other events use sendBeacon (fire-and-forget)
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
     navigator.sendBeacon("/api/sky-ads/track", new Blob([body], { type: "application/json" }));
   } else {
     fetch("/api/sky-ads/track", { method: "POST", body, keepalive: true }).catch(() => {});
+  }
+}
+
+/** Append gc_click_id param to a URL. Returns original URL on failure. */
+export function appendClickId(url: string, clickId: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.set("gc_click_id", clickId);
+    return u.toString();
+  } catch {
+    return url;
   }
 }
 

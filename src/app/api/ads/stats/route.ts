@@ -69,39 +69,46 @@ export async function GET(request: NextRequest) {
     : null;
 
   // Build per-ad stats map
-  const adStats = new Map<string, { impressions: number; clicks: number; cta_clicks: number }>();
+  const adStats = new Map<string, { impressions: number; clicks: number; cta_clicks: number; conversions: number; revenue_cents: number }>();
   for (const row of currentResult.data ?? []) {
     adStats.set(row.ad_id, {
       impressions: Number(row.impressions),
       clicks: Number(row.clicks),
       cta_clicks: Number(row.cta_clicks),
+      conversions: Number(row.conversions ?? 0),
+      revenue_cents: Number(row.revenue_cents ?? 0),
     });
   }
 
   // Build daily chart data
-  const dailyMap = new Map<string, { impressions: number; clicks: number }>();
+  const dailyMap = new Map<string, { impressions: number; clicks: number; conversions: number }>();
   for (const row of dailyResult.data ?? []) {
-    const dayCur = dailyMap.get(row.day) ?? { impressions: 0, clicks: 0 };
+    const dayCur = dailyMap.get(row.day) ?? { impressions: 0, clicks: 0, conversions: 0 };
     dayCur.impressions += Number(row.impressions);
     dayCur.clicks += Number(row.clicks) + Number(row.cta_clicks);
+    dayCur.conversions += Number(row.conversions ?? 0);
     dailyMap.set(row.day, dayCur);
   }
 
   // Previous period totals
-  const prevTotals = { impressions: 0, clicks: 0, cta_clicks: 0 };
+  const prevTotals = { impressions: 0, clicks: 0, cta_clicks: 0, conversions: 0, revenue_cents: 0 };
   for (const row of prevResult?.data ?? []) {
     prevTotals.impressions += Number(row.impressions);
     prevTotals.clicks += Number(row.clicks);
     prevTotals.cta_clicks += Number(row.cta_clicks);
+    prevTotals.conversions += Number(row.conversions ?? 0);
+    prevTotals.revenue_cents += Number(row.revenue_cents ?? 0);
   }
 
   // Build response
-  const totals = { impressions: 0, clicks: 0, cta_clicks: 0 };
+  const totals = { impressions: 0, clicks: 0, cta_clicks: 0, conversions: 0, revenue_cents: 0 };
   const adsResponse = ads.map((ad) => {
-    const s = adStats.get(ad.id) ?? { impressions: 0, clicks: 0, cta_clicks: 0 };
+    const s = adStats.get(ad.id) ?? { impressions: 0, clicks: 0, cta_clicks: 0, conversions: 0, revenue_cents: 0 };
     totals.impressions += s.impressions;
     totals.clicks += s.clicks;
     totals.cta_clicks += s.cta_clicks;
+    totals.conversions += s.conversions;
+    totals.revenue_cents += s.revenue_cents;
 
     const totalClicks = s.clicks + s.cta_clicks;
     return {
@@ -109,6 +116,8 @@ export async function GET(request: NextRequest) {
       impressions: s.impressions,
       clicks: s.clicks,
       cta_clicks: s.cta_clicks,
+      conversions: s.conversions,
+      revenue_cents: s.revenue_cents,
       ctr: s.impressions > 0 ? ((totalClicks / s.impressions) * 100).toFixed(2) + "%" : "0.00%",
     };
   });
@@ -126,6 +135,10 @@ export async function GET(request: NextRequest) {
     .map(([day, d]) => ({ day, ...d }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
+  const convRate = totals.cta_clicks > 0
+    ? ((totals.conversions / totals.cta_clicks) * 100).toFixed(2) + "%"
+    : "0.00%";
+
   return NextResponse.json(
     {
       ads: adsResponse,
@@ -133,11 +146,15 @@ export async function GET(request: NextRequest) {
         impressions: totals.impressions,
         clicks: totals.clicks,
         cta_clicks: totals.cta_clicks,
+        conversions: totals.conversions,
+        revenue_cents: totals.revenue_cents,
         ctr,
+        conv_rate: convRate,
         changes: {
           impressions: pctChange(totals.impressions, prevTotals.impressions),
           clicks: pctChange(totals.clicks, prevTotals.clicks),
           cta_clicks: pctChange(totals.cta_clicks, prevTotals.cta_clicks),
+          conversions: pctChange(totals.conversions, prevTotals.conversions),
         },
       },
       daily,

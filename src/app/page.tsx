@@ -35,7 +35,7 @@ import XpBar from "@/components/XpBar";
 import { rankFromLevel, tierFromLevel, levelProgress, xpForLevel } from "@/lib/xp";
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
 import { getCityCache, setCityCache, clearCityCache } from "@/lib/cityCache";
-import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent, trackAdEvents, isBuildingAd } from "@/lib/skyAds";
+import { DEFAULT_SKY_ADS, buildAdLink, trackAdEvent, trackAdEvents, appendClickId, isBuildingAd } from "@/lib/skyAds";
 import { track } from "@vercel/analytics";
 import {
   identifyUser,
@@ -2242,19 +2242,20 @@ function HomeContent() {
           if (ad.link && isBuildingAd(ad.vehicle)) {
             const ctaHref = buildAdLink(ad) ?? ad.link;
             const isMailto = ad.link.startsWith("mailto:");
-            // Single beacon for both events (avoids rate limit dropping cta_click)
-            trackAdEvents(ad.id, ["click", "cta_click"], authLogin || undefined);
+            // Track click via beacon, cta_click via fetch to get click_id
+            trackAdEvent(ad.id, "click", authLogin || undefined);
             trackSkyAdCtaClick(ad.id, ad.vehicle);
             track("sky_ad_click", { ad_id: ad.id, vehicle: ad.vehicle, brand: ad.brand ?? "" });
-            if (isMailto) {
-              window.location.href = ctaHref;
-            } else {
-              const a = document.createElement("a");
-              a.href = ctaHref;
-              a.target = "_blank";
-              a.rel = "noopener noreferrer";
-              a.click();
-            }
+            // Async: get click_id then open link
+            (async () => {
+              const clickId = await trackAdEvent(ad.id, "cta_click", authLogin || undefined);
+              const finalUrl = clickId ? appendClickId(ctaHref, clickId) : ctaHref;
+              if (isMailto) {
+                window.location.href = finalUrl;
+              } else {
+                window.open(finalUrl, "_blank", "noopener,noreferrer");
+              }
+            })();
             try { setAdToast(ad.brand || new URL(ad.link).hostname.replace("www.", "")); } catch { setAdToast(ad.brand || "link"); }
             setTimeout(() => setAdToast(null), 2500);
           } else {
@@ -5052,10 +5053,17 @@ function HomeContent() {
                         backgroundColor: theme.accent,
                         boxShadow: `4px 4px 0 0 ${theme.shadow}`,
                       }}
-                      onClick={() => {
+                      onClick={async (e) => {
+                        e.preventDefault();
                         track("sky_ad_click", { ad_id: clickedAd.id, vehicle: clickedAd.vehicle, brand: clickedAd.brand ?? "" });
-                        trackAdEvent(clickedAd.id, "cta_click", authLogin || undefined);
                         trackSkyAdCtaClick(clickedAd.id, clickedAd.vehicle);
+                        const clickId = await trackAdEvent(clickedAd.id, "cta_click", authLogin || undefined);
+                        const finalUrl = clickId ? appendClickId(ctaHref, clickId) : ctaHref;
+                        if (isMailto) {
+                          window.location.href = finalUrl;
+                        } else {
+                          window.open(finalUrl, "_blank", "noopener,noreferrer");
+                        }
                       }}
                     >
                       {isMailto

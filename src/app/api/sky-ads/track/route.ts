@@ -4,6 +4,11 @@ import { rateLimit } from "@/lib/rate-limit";
 
 const VALID_EVENTS = new Set(["impression", "click", "cta_click"]);
 
+function generateClickId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return "gc_" + Array.from(bytes).map((b) => b.toString(36).padStart(2, "0")).join("").slice(0, 21);
+}
+
 const BOT_UA_PATTERNS = /bot|crawler|spider|headless|phantomjs|selenium|puppeteer|wget|curl|python-requests|scrapy|slurp|mediapartners/i;
 
 const MOBILE_UA = /Mobile|Android|iPhone/i;
@@ -150,6 +155,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }, { status: 201 });
   }
 
+  // Generate click_id for cta_click events (used for conversion tracking)
+  const hasCtaClick = finalTypes.includes("cta_click");
+  const clickId = hasCtaClick ? generateClickId() : null;
+
   const rows = finalTypes.map((event_type) => ({
     ad_id,
     event_type,
@@ -159,9 +168,10 @@ export async function POST(request: NextRequest) {
     country,
     region,
     device,
+    ...(event_type === "cta_click" && clickId ? { click_id: clickId } : {}),
   }));
 
   await sb.from("sky_ad_events").insert(rows);
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  return NextResponse.json({ ok: true, ...(clickId ? { click_id: clickId } : {}) }, { status: 201 });
 }

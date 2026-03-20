@@ -9,18 +9,23 @@ interface AdReport {
     impressions: number;
     engagements: number;
     linkClicks: number;
+    conversions: number;
     ctr: string;
+    convRate: string;
   }[];
   totals: {
     impressions: number;
     engagements: number;
     linkClicks: number;
+    conversions: number;
     ctr: string;
+    convRate: string;
   };
   prevTotals: {
     impressions: number;
     engagements: number;
     linkClicks: number;
+    conversions: number;
   };
 }
 
@@ -45,10 +50,12 @@ export async function sendWeeklyAdReport(report: AdReport) {
   const impChange = pctLabel(report.totals.impressions, report.prevTotals.impressions);
   const engChange = pctLabel(report.totals.engagements, report.prevTotals.engagements);
   const linkChange = pctLabel(report.totals.linkClicks, report.prevTotals.linkClicks);
+  const convChange = pctLabel(report.totals.conversions, report.prevTotals.conversions);
 
   const impColor = changeColor(report.totals.impressions, report.prevTotals.impressions);
   const engColor = changeColor(report.totals.engagements, report.prevTotals.engagements);
   const linkColor = changeColor(report.totals.linkClicks, report.prevTotals.linkClicks);
+  const convColor = changeColor(report.totals.conversions, report.prevTotals.conversions);
 
   // CTR comparison
   const prevTotalClicks = report.prevTotals.engagements + report.prevTotals.linkClicks;
@@ -60,6 +67,16 @@ export async function sendWeeklyAdReport(report: AdReport) {
     : 0;
   const ctrChange = pctLabel(Math.round(currCtr * 100), Math.round(prevCtr * 100));
   const ctrColor = changeColor(Math.round(currCtr * 100), Math.round(prevCtr * 100));
+
+  // Conv rate comparison
+  const prevConvRate = report.prevTotals.linkClicks > 0
+    ? (report.prevTotals.conversions / report.prevTotals.linkClicks) * 100
+    : 0;
+  const currConvRate = report.totals.linkClicks > 0
+    ? (report.totals.conversions / report.totals.linkClicks) * 100
+    : 0;
+  const convRateChange = pctLabel(Math.round(currConvRate * 100), Math.round(prevConvRate * 100));
+  const convRateColor = changeColor(Math.round(currConvRate * 100), Math.round(prevConvRate * 100));
 
   // Summary cards row
   const summaryCard = (label: string, value: string, change: string, color: string) => `
@@ -76,6 +93,8 @@ export async function sendWeeklyAdReport(report: AdReport) {
         ${summaryCard("Engaged", fmtNum(report.totals.engagements), engChange, engColor)}
         ${summaryCard("Links", fmtNum(report.totals.linkClicks), linkChange, linkColor)}
         ${summaryCard("CTR", report.totals.ctr, ctrChange, ctrColor)}
+        ${summaryCard("Conversions", fmtNum(report.totals.conversions), convChange, convColor)}
+        ${summaryCard("Conv. Rate", report.totals.convRate, convRateChange, convRateColor)}
       </tr>
     </table>`;
 
@@ -88,6 +107,7 @@ export async function sendWeeklyAdReport(report: AdReport) {
         <td style="padding: 10px 12px; border-bottom: 1px solid #eeeeee; color: #333333; font-family: Helvetica, Arial, sans-serif; font-size: 13px; text-align: right;">${fmtNum(ad.impressions)}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #eeeeee; color: #333333; font-family: Helvetica, Arial, sans-serif; font-size: 13px; text-align: right;">${fmtNum(ad.linkClicks)}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #eeeeee; color: #333333; font-family: Helvetica, Arial, sans-serif; font-size: 13px; text-align: right;">${ad.ctr}</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #eeeeee; color: #333333; font-family: Helvetica, Arial, sans-serif; font-size: 13px; text-align: right;">${fmtNum(ad.conversions)}</td>
       </tr>`)
     .join("");
 
@@ -98,6 +118,7 @@ export async function sendWeeklyAdReport(report: AdReport) {
         <td style="padding: 8px 12px; border-bottom: 2px solid #eeeeee; color: #999999; font-family: Helvetica, Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">Views</td>
         <td style="padding: 8px 12px; border-bottom: 2px solid #eeeeee; color: #999999; font-family: Helvetica, Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">Links</td>
         <td style="padding: 8px 12px; border-bottom: 2px solid #eeeeee; color: #999999; font-family: Helvetica, Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">CTR</td>
+        <td style="padding: 8px 12px; border-bottom: 2px solid #eeeeee; color: #999999; font-family: Helvetica, Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: right;">Conv.</td>
       </tr>
       ${adRows}
     </table>` : "";

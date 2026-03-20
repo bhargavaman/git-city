@@ -54,21 +54,26 @@ export async function GET(
     p_ad_ids: [adId],
   });
 
-  let impressions = 0, clicks = 0, cta_clicks = 0;
-  const daily: { day: string; impressions: number; clicks: number; cta_clicks: number }[] = [];
+  let impressions = 0, clicks = 0, cta_clicks = 0, conversions = 0, revenue_cents = 0;
+  const daily: { day: string; impressions: number; clicks: number; cta_clicks: number; conversions: number; revenue_cents: number }[] = [];
 
   for (const row of dailyStats ?? []) {
     const imp = Number(row.impressions);
     const clk = Number(row.clicks);
     const cta = Number(row.cta_clicks);
+    const conv = Number(row.conversions ?? 0);
+    const rev = Number(row.revenue_cents ?? 0);
     impressions += imp;
     clicks += clk;
     cta_clicks += cta;
-    daily.push({ day: row.day, impressions: imp, clicks: clk, cta_clicks: cta });
+    conversions += conv;
+    revenue_cents += rev;
+    daily.push({ day: row.day, impressions: imp, clicks: clk, cta_clicks: cta, conversions: conv, revenue_cents: rev });
   }
 
   const totalClicks = clicks + cta_clicks;
   const ctr = impressions > 0 ? ((totalClicks / impressions) * 100).toFixed(2) + "%" : "0.00%";
+  const conv_rate = cta_clicks > 0 ? ((conversions / cta_clicks) * 100).toFixed(2) + "%" : "0.00%";
 
   return NextResponse.json({
     ad_id: adId,
@@ -76,7 +81,10 @@ export async function GET(
     impressions,
     clicks,
     cta_clicks,
+    conversions,
+    revenue_cents,
     ctr,
+    conv_rate,
     daily,
   });
 }

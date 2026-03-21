@@ -39,6 +39,15 @@ export type ClientMsg =
   | { type: "stand" }
   | { type: "avatar"; sprite_id: number };
 
+// ─── Room info (for room browser) ────────────────────────────
+export interface RoomInfo {
+  slug: string;
+  name: string;
+  playerCount: number;
+  maxPlayers: number;
+  roomType: string;
+}
+
 // ─── Protocol: Server → Client ────────────────────────────────
 export type ServerMsg =
   | { type: "sync"; players: PlayerState[] }
@@ -49,4 +58,5 @@ export type ServerMsg =
   | { type: "chat_history"; entries: ChatLogEntry[] }
   | { type: "sit"; id: string; x: number; y: number; dir: Direction }
   | { type: "stand"; id: string; x: number; y: number }
-  | { type: "avatar"; id: string; sprite_id: number };
+  | { type: "avatar"; id: string; sprite_id: number }
+  | { type: "map_reload"; map: Record<string, unknown> };

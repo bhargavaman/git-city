@@ -13,13 +13,14 @@ export interface ArcadeCallbacks {
   onSit: (id: string, x: number, y: number, dir: PlayerState["dir"]) => void;
   onStand: (id: string, x: number, y: number) => void;
   onAvatar: (id: string, spriteId: number) => void;
+  onMapReload: (map: Record<string, unknown>) => void;
   onStatusChange: (status: ConnectionStatus) => void;
 }
 
 let socket: PartySocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-export function connect(token: string, callbacks: ArcadeCallbacks, spriteId?: number): void {
+export function connect(token: string, callbacks: ArcadeCallbacks, spriteId?: number, slug: string = "lobby"): void {
   if (socket) {
     socket.close();
   }
@@ -33,7 +34,7 @@ export function connect(token: string, callbacks: ArcadeCallbacks, spriteId?: nu
 
   socket = new PartySocket({
     host,
-    room: "lobby",
+    room: slug,
     query,
   });
 
@@ -90,6 +91,9 @@ export function connect(token: string, callbacks: ArcadeCallbacks, spriteId?: nu
         break;
       case "avatar":
         callbacks.onAvatar(msg.id, msg.sprite_id);
+        break;
+      case "map_reload":
+        callbacks.onMapReload(msg.map);
         break;
     }
   });

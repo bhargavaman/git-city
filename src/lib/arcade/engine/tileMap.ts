@@ -83,6 +83,11 @@ export async function loadMap(url: string): Promise<GameMap> {
   return map;
 }
 
+export function loadMapFromData(map: GameMap): GameMap {
+  currentMap = map;
+  return map;
+}
+
 export function getMap(): GameMap | null {
   return currentMap;
 }

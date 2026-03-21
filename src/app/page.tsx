@@ -560,7 +560,7 @@ function HomeContent() {
     const pkHost = process.env.NEXT_PUBLIC_PARTYKIT_HOST;
     if (pkHost) {
       const base = pkHost.startsWith("http") ? pkHost : `${pkHost.includes("localhost") ? "http" : "https"}://${pkHost}`;
-      fetch(`${base}/parties/main/lobby`)
+      fetch(`${base}/parties/lobby/main`)
         .then((r) => r.ok ? r.json() : null)
         .then((d: { count?: number } | null) => { if (d?.count) setArcadeOnline(d.count); })
         .catch(() => { });

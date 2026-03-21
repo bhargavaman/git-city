@@ -17,6 +17,5 @@ export default function ArcadeLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // No GlobalRadio, no other global UI - arcade has its own full-screen UI
   return <>{children}</>;
 }

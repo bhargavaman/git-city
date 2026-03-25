@@ -91,6 +91,7 @@ interface Props {
   popularItems?: string[];
   purchaseCounts?: Record<string, number>;
   totalPurchaseCounts?: Record<string, number>;
+  pxBalance?: number;
 }
 
 interface PixModalData {
@@ -152,7 +153,9 @@ function dataUrlToFile(dataUrl: string, name: string, type: string): File {
 const PIX_EXPIRY_SECONDS = 900; // 15 minutes
 
 function formatPrice(item: ShopItem): string {
-  return `$${(item.price_usd_cents / 100).toFixed(2)}`;
+  if (item.price_pixels != null) return `${item.price_pixels} PX`;
+  if (item.price_usd_cents <= 0) return "Free";
+  return "—";
 }
 
 function formatCountdown(seconds: number): string {
@@ -632,7 +635,11 @@ export default function ShopClient({
   popularItems = [],
   purchaseCounts = {},
   totalPurchaseCounts = {},
+  pxBalance: initialPxBalance = 0,
 }: Props) {
+  // Pixel balance
+  const [pxBalance, setPxBalance] = useState(initialPxBalance);
+
   // Loadout state
   const [loadout, setLoadout] = useState<Loadout>(
     initialLoadout ?? { crown: null, roof: null, aura: null }
@@ -708,7 +715,7 @@ export default function ShopClient({
   useEffect(() => {
     if (!purchasedItem) return;
     const shopItem = items.find((i) => i.id === purchasedItem);
-    trackPurchaseCompleted(purchasedItem, shopItem?.price_usd_cents ?? 0, "stripe");
+    trackPurchaseCompleted(purchasedItem, shopItem?.price_pixels ?? 0, "pixels");
     // Clear toast after 5s
     const timer = setTimeout(() => setPurchaseToast(null), 5000);
     // Switch to correct tab
@@ -742,7 +749,7 @@ export default function ShopClient({
   useEffect(() => {
     if (!giftedItem || !giftedTo) return;
     const shopItem = items.find((i) => i.id === giftedItem);
-    trackPurchaseCompleted(giftedItem, shopItem?.price_usd_cents ?? 0, "stripe");
+    trackPurchaseCompleted(giftedItem, shopItem?.price_pixels ?? 0, "pixels");
     const timer = setTimeout(() => setGiftToast(null), 5000);
     window.history.replaceState({}, "", window.location.pathname);
     return () => clearTimeout(timer);
@@ -1009,6 +1016,45 @@ export default function ShopClient({
     [buyingItem, items, githubLogin]
   );
 
+  const spendPixels = useCallback(
+    async (itemId: string) => {
+      if (buyingItem) return;
+      setBuyingItem(itemId);
+      setBuyingProvider("stripe"); // reuse loading state
+      setError(null);
+
+      try {
+        const res = await fetch("/api/pixels/spend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ item_id: itemId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 409) {
+            setError("You already own this item");
+            setOwned((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
+          } else {
+            setError(data.error || "Purchase failed");
+          }
+          return;
+        }
+
+        // Success: update balance and mark as owned
+        setPxBalance(data.new_balance ?? 0);
+        setOwned((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
+      } catch {
+        setError("Network error. Try again.");
+      } finally {
+        setBuyingItem(null);
+        setBuyingProvider(null);
+      }
+    },
+    [buyingItem]
+  );
+
   const handlePixCompleted = useCallback(
     (_purchaseId: string) => {
       if (pixModal) {
@@ -1246,7 +1292,7 @@ export default function ShopClient({
                     } else if (isFreeItem) {
                       badge = "FREE";
                       badgeColor = ACCENT;
-                    } else if (achUnlock && !shopItem?.price_usd_cents) {
+                    } else if (achUnlock && !shopItem?.price_pixels) {
                       badge = hasAchievement ? "Unlockable!" : achUnlock.label.split("(")[0].trim();
                       badgeColor = hasAchievement ? "#39d353" : "#a0a0b0";
                     } else if (shopItem) {
@@ -1267,7 +1313,6 @@ export default function ShopClient({
                       } else if (isOwned) {
                         handleEquip(zoneKey, itemId);
                       } else if (isGitHubStar && !isOwned) {
-                        // Step 1: open repo, Step 2: verify
                         if (starVerifyStep === "idle") {
                           window.open("https://github.com/srizzon/git-city", "_blank");
                           setStarVerifyStep("opened");
@@ -1276,8 +1321,8 @@ export default function ShopClient({
                         }
                       } else if (isFreeItem) {
                         claimFreeItem();
-                      } else if (shopItem && shopItem.price_usd_cents > 0) {
-                        if (!isConfirming) trackShopItemViewed(itemId, zone, shopItem.price_usd_cents);
+                      } else if (shopItem && (shopItem.price_pixels ?? 0) > 0) {
+                        if (!isConfirming) trackShopItemViewed(itemId, zone, shopItem.price_pixels ?? 0);
                         setConfirmBuyItem(isConfirming ? null : itemId);
                       }
                     };
@@ -1366,31 +1411,19 @@ export default function ShopClient({
                                   Cancel
                                 </button>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }}
-                                  disabled={isBuying}
+                                  onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels(itemId); }}
+                                  disabled={isBuying || pxBalance < (shopItem.price_pixels ?? 0)}
                                   className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40"
                                   style={{ backgroundColor: ACCENT, boxShadow: `1px 1px 0 0 ${SHADOW}` }}
                                 >
                                   {isBuying ? "..." : "Buy"}
                                 </button>
                               </div>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "nowpayments"); }}
-                                disabled={isBuying}
-                                className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                                style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}
-                              >
-                                {isBuying ? "..." : "Pay with Crypto"}
-                              </button>
-                              {isBrazil && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "abacatepay"); }}
-                                  disabled={isBuying}
-                                  className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                                  style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}
-                                >
-                                  {isBuying ? "..." : "Pay with PIX"}
-                                </button>
+                              {pxBalance < (shopItem.price_pixels ?? 0) && (
+                                <p className="text-[8px] text-center text-red-400">
+                                  Not enough PX ({pxBalance} / {shopItem.price_pixels}).{" "}
+                                  <a href="/pixels" className="underline hover:text-red-300">Buy PX</a>
+                                </p>
                               )}
                             </div>
                           </div>
@@ -1432,7 +1465,7 @@ export default function ShopClient({
                 } else if (isBillboard && billboardSlots > 0) {
                   badge = `x${billboardSlots}`;
                   badgeColor = ACCENT;
-                } else if (achUnlock && !shopItem?.price_usd_cents) {
+                } else if (achUnlock && !shopItem?.price_pixels) {
                   badge = hasAchievement ? "Unlockable!" : achUnlock.label.split("(")[0].trim();
                   badgeColor = hasAchievement ? "#39d353" : "#a0a0b0";
                 } else if (shopItem) {
@@ -1449,11 +1482,10 @@ export default function ShopClient({
                 const handleClick = () => {
                   setHighlightItem(itemId);
                   if (isBillboard && isFacesOwned) {
-                    // Already owned, scroll to upload — no action needed on card
                     return;
                   }
-                  if (isOwned) return; // faces items don't equip/unequip
-                  if (shopItem && shopItem.price_usd_cents > 0) {
+                  if (isOwned) return;
+                  if (shopItem && (shopItem.price_pixels ?? 0) > 0) {
                     setConfirmBuyItem(isConfirming ? null : itemId);
                   }
                 };
@@ -1524,31 +1556,18 @@ export default function ShopClient({
                               Cancel
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }}
-                              disabled={isBuying}
+                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels(itemId); }}
+                              disabled={isBuying || pxBalance < (shopItem.price_pixels ?? 0)}
                               className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40"
                               style={{ backgroundColor: ACCENT, boxShadow: `1px 1px 0 0 ${SHADOW}` }}
                             >
                               {isBuying ? "..." : "Buy"}
                             </button>
                           </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "nowpayments"); }}
-                            disabled={isBuying}
-                            className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                            style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}
-                          >
-                            {isBuying ? "..." : "Pay with Crypto"}
-                          </button>
-                          {isBrazil && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "abacatepay"); }}
-                              disabled={isBuying}
-                              className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                              style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}
-                            >
-                              {isBuying ? "..." : "Pay with PIX"}
-                            </button>
+                          {pxBalance < (shopItem.price_pixels ?? 0) && (
+                            <p className="text-[8px] text-center text-red-400">
+                              Not enough PX ({pxBalance} / {shopItem.price_pixels})
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1632,7 +1651,7 @@ export default function ShopClient({
                     <button
                       onClick={() => {
                         if (atMax) return;
-                        if (!isConfirming) trackShopItemViewed("streak_freeze", "consumable", freezeItem.price_usd_cents);
+                        if (!isConfirming) trackShopItemViewed("streak_freeze", "consumable", freezeItem.price_pixels ?? 0);
                         setConfirmBuyItem(isConfirming ? null : "streak_freeze");
                       }}
                       disabled={isBuying || atMax}
@@ -1674,31 +1693,19 @@ export default function ShopClient({
                               Cancel
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout("streak_freeze"); }}
-                              disabled={isBuying}
+                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels("streak_freeze"); }}
+                              disabled={isBuying || pxBalance < (freezeItem?.price_pixels ?? 0)}
                               className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40"
                               style={{ backgroundColor: ACCENT, boxShadow: `1px 1px 0 0 ${SHADOW}` }}
                             >
                               {isBuying ? "..." : "Buy"}
                             </button>
                           </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout("streak_freeze", "nowpayments"); }}
-                            disabled={isBuying}
-                            className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                            style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}
-                          >
-                            {isBuying ? "..." : "Pay with Crypto"}
-                          </button>
-                          {isBrazil && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout("streak_freeze", "abacatepay"); }}
-                              disabled={isBuying}
-                              className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40"
-                              style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}
-                            >
-                              {isBuying ? "..." : "Pay with PIX"}
-                            </button>
+                          {pxBalance < (freezeItem?.price_pixels ?? 0) && (
+                            <p className="text-[8px] text-center text-red-400">
+                              Not enough PX ({pxBalance} / {freezeItem?.price_pixels}).{" "}
+                              <a href="/pixels" className="underline hover:text-red-300">Buy PX</a>
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1708,11 +1715,6 @@ export default function ShopClient({
               </div>
             );
           })()}
-
-          {/* Payment note */}
-          <p className="text-center text-[10px] text-dim normal-case">
-            Payment via Stripe
-          </p>
             </div>
           </div>
 
@@ -1821,10 +1823,9 @@ export default function ShopClient({
                         <div className="flex flex-col gap-1">
                           <div className="flex gap-1">
                             <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-2 border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
-                            <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                            <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels(itemId); }} disabled={isBuying || pxBalance < (shopItem.price_pixels ?? 0)} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "nowpayments"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}>{isBuying ? "..." : "Pay with Crypto"}</button>
-                          <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "abacatepay"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}>{isBuying ? "..." : "Pay with PIX"}</button>
+                          {pxBalance < (shopItem.price_pixels ?? 0) && <p className="text-[8px] text-center text-red-400">Not enough PX ({pxBalance} / {shopItem.price_pixels}). <a href="/pixels" className="underline hover:text-red-300">Buy PX</a></p>}
                         </div>
                       </div>
                     )}
@@ -1889,10 +1890,9 @@ export default function ShopClient({
                             <div className="flex flex-col gap-1">
                               <div className="flex gap-1">
                                 <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-2 border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
-                                <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                                <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels(itemId); }} disabled={isBuying || pxBalance < (shopItem.price_pixels ?? 0)} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "nowpayments"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}>{isBuying ? "..." : "Pay with Crypto"}</button>
-                              {isBrazil && <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "abacatepay"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}>{isBuying ? "..." : "Pay with PIX"}</button>}
+                              {pxBalance < (shopItem.price_pixels ?? 0) && <p className="text-[8px] text-center text-red-400">Not enough PX ({pxBalance} / {shopItem.price_pixels}). <a href="/pixels" className="underline hover:text-red-300">Buy PX</a></p>}
                             </div>
                           </div>
                         )}
@@ -1951,10 +1951,9 @@ export default function ShopClient({
                             <div className="flex flex-col gap-1">
                               <div className="flex gap-1">
                                 <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); }} className="flex-1 border-2 border-border py-1 text-[9px] text-muted hover:text-cream">Cancel</button>
-                                <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId); }} disabled={isBuying} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
+                                <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); spendPixels(itemId); }} disabled={isBuying || pxBalance < (shopItem.price_pixels ?? 0)} className="btn-press flex-1 py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#ff5555", boxShadow: "1px 1px 0 0 #aa2222" }}>{isBuying ? "..." : "Buy"}</button>
                               </div>
-                              <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "nowpayments"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#f7931a", boxShadow: "1px 1px 0 0 #b36a00" }}>{isBuying ? "..." : "Pay with Crypto"}</button>
-                              {isBrazil && <button onClick={(e) => { e.stopPropagation(); setConfirmBuyItem(null); checkout(itemId, "abacatepay"); }} disabled={isBuying} className="btn-press w-full py-1 text-[9px] text-bg disabled:opacity-40" style={{ backgroundColor: "#32bcad", boxShadow: "1px 1px 0 0 #1a7a6e" }}>{isBuying ? "..." : "Pay with PIX"}</button>}
+                              {pxBalance < (shopItem.price_pixels ?? 0) && <p className="text-[8px] text-center text-red-400">Not enough PX ({pxBalance} / {shopItem.price_pixels}). <a href="/pixels" className="underline hover:text-red-300">Buy PX</a></p>}
                             </div>
                           </div>
                         )}
@@ -1966,9 +1965,10 @@ export default function ShopClient({
             })()}
           </div>
 
-          {/* Payment note */}
+          {/* PX note */}
           <p className="text-center text-[10px] text-dim normal-case">
-            Payment via Stripe
+            All items purchased with{" "}
+            <a href="/pixels" className="text-lime hover:underline">Pixels (PX)</a>
           </p>
         </div>
       )}

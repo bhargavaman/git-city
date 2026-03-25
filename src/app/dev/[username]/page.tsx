@@ -107,6 +107,23 @@ export default async function DevPage({ params }: Props) {
   ).toLowerCase();
   const isOwner = !!user && authLogin === dev.github_login.toLowerCase() && dev.claimed;
 
+  // Fire-and-forget: earn PX for visiting another dev's profile
+  if (user && authLogin && !isOwner) {
+    const sb = getSupabaseAdmin();
+    sb.from("developers")
+      .select("id")
+      .eq("github_login", authLogin)
+      .single()
+      .then(({ data: viewer }) => {
+        if (viewer) {
+          import("@/lib/pixels").then(({ earnPixels }) => {
+            const today = new Date().toISOString().slice(0, 10);
+            earnPixels(viewer.id, "visit_city", dev.id.toString(), `visit:${today}:${viewer.id}`);
+          }).catch(() => {});
+        }
+      });
+  }
+
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ??
     (process.env.VERCEL_URL

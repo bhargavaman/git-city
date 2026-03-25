@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useEffectEvent, useState, useMemo } from "react";
+import { useRef, useEffect, useEffectEvent, useState, useMemo, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Stats, PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
@@ -181,13 +181,6 @@ function SkyDome({ stops }: { stops: [number, string][] }) {
     return new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false });
   }, [stops]);
 
-  // Keep sky dome centered on camera so it always surrounds the viewer
-  useFrame(({ camera }) => {
-    if (meshRef.current) {
-      meshRef.current.position.copy(camera.position);
-    }
-  });
-
   useEffect(() => {
     return () => {
       mat.map?.dispose();
@@ -195,8 +188,16 @@ function SkyDome({ stops }: { stops: [number, string][] }) {
     };
   }, [mat]);
 
+  // Center sky dome on whichever camera is currently rendering
+  // (works with split-screen virtual cameras, not just the default one)
+  const onBeforeRender = useCallback((_renderer: THREE.WebGLRenderer, _scene: THREE.Scene, camera: THREE.Camera) => {
+    if (meshRef.current) {
+      meshRef.current.position.copy(camera.position);
+    }
+  }, []);
+
   return (
-    <mesh ref={meshRef} material={mat} renderOrder={-1}>
+    <mesh ref={meshRef} material={mat} renderOrder={-1} onBeforeRender={onBeforeRender}>
       <sphereGeometry args={[3500, 32, 48]} />
     </mesh>
   );
@@ -2188,7 +2189,7 @@ export default function CityCanvas({ buildings, plazas, decorations, river, brid
 
   return (
     <Canvas
-      camera={{ position: [-400, 450, -600], fov: 55, near: 0.5, far: 4000 }}
+      camera={{ position: [-400, 450, -600], fov: 55, near: 0.5, far: 15000 }}
       dpr={dpr}
       gl={{ antialias: false, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.3 }}
       style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }}

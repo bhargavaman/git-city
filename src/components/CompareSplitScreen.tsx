@@ -16,14 +16,14 @@ export default function CompareSplitScreen({ buildingA, buildingB }: CompareSpli
 
     // Create a virtual camera for Building A (Left side)
     const virtualCamA = useMemo(() => {
-        const cam = new THREE.PerspectiveCamera(55, size.width / 2 / size.height, 0.5, 4000);
+        const cam = new THREE.PerspectiveCamera(55, size.width / 2 / size.height, 0.5, 15000);
         cam.position.set(buildingA.position[0], buildingA.height + 200, buildingA.position[2] + 400);
         return cam;
     }, [buildingA, size.width, size.height]);
 
     // Create a virtual camera for Building B (Right side)
     const virtualCamB = useMemo(() => {
-        const cam = new THREE.PerspectiveCamera(55, size.width / 2 / size.height, 0.5, 4000);
+        const cam = new THREE.PerspectiveCamera(55, size.width / 2 / size.height, 0.5, 15000);
         cam.position.set(buildingB.position[0], buildingB.height + 200, buildingB.position[2] + 400);
         return cam;
     }, [buildingB, size.width, size.height]);

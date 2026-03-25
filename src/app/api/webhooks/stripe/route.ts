@@ -151,6 +151,54 @@ export async function POST(request: Request) {
           break;
         }
 
+        // --- Pixel package purchase ---
+        if (session.metadata?.type === "pixel_package") {
+          const pxPackageId = session.metadata.package_id;
+          const pxDevId = Number(session.metadata.developer_id);
+          const pxPaymentIntentId =
+            typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : session.payment_intent?.id;
+
+          const { data: pkg } = await sb
+            .from("pixel_packages")
+            .select("pixels, bonus_pixels")
+            .eq("id", pxPackageId)
+            .single();
+
+          if (!pkg) {
+            console.error("Pixel package not found:", pxPackageId);
+            break;
+          }
+
+          const totalPx = pkg.pixels + pkg.bonus_pixels;
+
+          await sb.rpc("credit_pixels", {
+            p_developer_id: pxDevId,
+            p_amount: totalPx,
+            p_source: "purchase",
+            p_reference_id: session.id,
+            p_reference_type: "stripe_session",
+            p_description: `Purchased ${totalPx} PX (${pxPackageId})`,
+            p_idempotency_key: `stripe:${session.id}`,
+          });
+
+          // Update status + swap provider_tx_id from session ID to payment intent ID
+          // so charge.dispute.created and charge.refunded handlers can find this row
+          await sb
+            .from("pixel_purchases")
+            .update({
+              status: "completed",
+              pixels_credited: totalPx,
+              provider_tx_id: pxPaymentIntentId ?? session.id,
+            })
+            .eq("provider_tx_id", session.id)
+            .eq("status", "pending")
+            .eq("provider", "stripe");
+
+          break;
+        }
+
         // --- Shop item purchase ---
         const developerId = session.metadata?.developer_id;
         const itemId = session.metadata?.item_id;
@@ -348,6 +396,14 @@ export async function POST(request: Request) {
             .eq("stripe_session_id", expiredSession.id)
             .eq("active", false);
         }
+
+        // Expire pending pixel purchases for this session
+        await sb
+          .from("pixel_purchases")
+          .update({ status: "expired" })
+          .eq("provider_tx_id", expiredSession.id)
+          .eq("status", "pending");
+
         break;
       }
 
@@ -366,6 +422,31 @@ export async function POST(request: Request) {
             .eq("provider_tx_id", paymentIntentId)
             .eq("status", "completed");
 
+          // Refund pixel purchases: debit PX + mark refunded
+          const { data: refundedPixPurchase } = await sb
+            .from("pixel_purchases")
+            .select("developer_id, pixels_credited")
+            .eq("provider_tx_id", paymentIntentId)
+            .eq("status", "completed")
+            .maybeSingle();
+
+          if (refundedPixPurchase && refundedPixPurchase.pixels_credited > 0) {
+            await sb.rpc("debit_pixels", {
+              p_developer_id: refundedPixPurchase.developer_id,
+              p_amount: refundedPixPurchase.pixels_credited,
+              p_source: "refund",
+              p_reference_id: paymentIntentId,
+              p_description: "Refund on PX purchase",
+              p_idempotency_key: `refund:${paymentIntentId}`,
+            });
+
+            await sb
+              .from("pixel_purchases")
+              .update({ status: "refunded" })
+              .eq("provider_tx_id", paymentIntentId)
+              .eq("status", "completed");
+          }
+
           // Refund sky ads: find checkout session for this payment intent
           const sessions = await stripe.checkout.sessions.list({
             payment_intent: paymentIntentId,
@@ -378,6 +459,56 @@ export async function POST(request: Request) {
               .update({ active: false })
               .eq("stripe_session_id", refundedSession.id);
           }
+        }
+        break;
+      }
+
+      case "charge.dispute.created": {
+        const dispute = event.data.object as Stripe.Dispute;
+        const disputePiId =
+          typeof dispute.payment_intent === "string"
+            ? dispute.payment_intent
+            : dispute.payment_intent?.id;
+
+        if (disputePiId) {
+          // Handle pixel purchase chargebacks
+          const { data: pixPurchase } = await sb
+            .from("pixel_purchases")
+            .select("developer_id, pixels_credited")
+            .eq("provider_tx_id", disputePiId)
+            .eq("status", "completed")
+            .maybeSingle();
+
+          if (pixPurchase) {
+            const disputeChargeId =
+              typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
+
+            await sb.rpc("debit_pixels", {
+              p_developer_id: pixPurchase.developer_id,
+              p_amount: pixPurchase.pixels_credited,
+              p_source: "chargeback",
+              p_reference_id: disputeChargeId ?? disputePiId,
+              p_description: "Chargeback on PX purchase",
+              p_idempotency_key: `chargeback:${disputePiId}`,
+            });
+
+            await sb
+              .from("developers")
+              .update({ suspended: true })
+              .eq("id", pixPurchase.developer_id);
+
+            await sb
+              .from("pixel_purchases")
+              .update({ status: "refunded" })
+              .eq("provider_tx_id", disputePiId);
+          }
+
+          // Also handle shop item chargebacks
+          await sb
+            .from("purchases")
+            .update({ status: "refunded" })
+            .eq("provider_tx_id", disputePiId)
+            .eq("status", "completed");
         }
         break;
       }

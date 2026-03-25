@@ -85,6 +85,11 @@ export async function POST() {
   // Grant XP for completing all dailies
   admin.rpc("grant_xp", { p_developer_id: dev.id, p_source: "dailies", p_amount: 25 }).then();
 
+  // Earn PX for completing dailies
+  import("@/lib/pixels").then(({ earnPixels }) =>
+    earnPixels(dev.id, "dailies_complete", undefined, `dailies:${today}:${dev.id}`),
+  ).catch(() => {});
+
   // Grant streak freeze every 7 completions (cap at 2)
   let freezeGranted = false;
   if (claimResult.total % 7 === 0) {

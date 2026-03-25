@@ -76,3 +76,54 @@ export async function createCheckoutSession(
 
   return { url: session.url! };
 }
+
+export async function createPixelCheckoutSession(
+  packageId: string,
+  developerId: number,
+  githubLogin: string,
+  currency: "usd" | "brl" = "usd",
+  customerEmail?: string,
+): Promise<{ url: string; sessionId: string }> {
+  const sb = getSupabaseAdmin();
+  const { data: pkg } = await sb
+    .from("pixel_packages")
+    .select("*")
+    .eq("id", packageId)
+    .eq("is_active", true)
+    .single();
+  if (!pkg) throw new Error("Package not found");
+
+  const stripe = getStripe();
+  const unitAmount = currency === "brl" ? pkg.price_brl_cents : pkg.price_usd_cents;
+  const totalPx = pkg.pixels + pkg.bonus_pixels;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: customerEmail || undefined,
+    line_items: [
+      {
+        price_data: {
+          currency,
+          product_data: {
+            name: `${totalPx} Pixels`,
+            description:
+              pkg.bonus_pixels > 0
+                ? `${pkg.pixels} PX + ${pkg.bonus_pixels} bonus`
+                : `${pkg.pixels} PX`,
+          },
+          unit_amount: unitAmount,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      type: "pixel_package",
+      package_id: packageId,
+      developer_id: String(developerId),
+    },
+    success_url: `${getBaseUrl()}/pixels?pixels_purchased=${packageId}`,
+    cancel_url: `${getBaseUrl()}/pixels`,
+  });
+
+  return { url: session.url!, sessionId: session.id };
+}

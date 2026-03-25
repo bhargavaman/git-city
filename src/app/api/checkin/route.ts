@@ -260,6 +260,16 @@ export async function POST() {
       );
     }
 
+    // Earn PX for streak milestones
+    const streakMilestones = [3, 7, 14, 30] as const;
+    for (const m of streakMilestones) {
+      if (checkinResult.streak === m) {
+        import("@/lib/pixels").then(({ earnPixels }) =>
+          earnPixels(dev.id, `streak_${m}`, undefined, `streak:${m}:${dev.id}:${new Date().toISOString().slice(0, 7)}`),
+        ).catch(() => {});
+      }
+    }
+
     // Insert feed event
     await sb.from("activity_feed").insert({
       event_type: "streak_checkin",

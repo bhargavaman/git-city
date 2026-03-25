@@ -32,6 +32,7 @@ import { isFridayThe13th } from "@/lib/raid";
 import { useDailies } from "@/lib/useDailies";
 import InviteCard, { type InvitePreview } from "@/components/InviteCard";
 import XpBar from "@/components/XpBar";
+import PixelBalance from "@/components/PixelBalance";
 import { rankFromLevel, tierFromLevel, levelProgress, xpForLevel } from "@/lib/xp";
 import LoadingScreen, { type LoadingStage } from "@/components/LoadingScreen";
 import { getCityCache, setCityCache, clearCityCache } from "@/lib/cityCache";
@@ -497,8 +498,9 @@ function HomeContent() {
   }, [comparePair]);
   const [compareSelfHint, setCompareSelfHint] = useState(false);
   const [giftModalOpen, setGiftModalOpen] = useState(false);
-  const [giftItems, setGiftItems] = useState<{ id: string; price_usd_cents: number; owned: boolean }[] | null>(null);
+  const [giftItems, setGiftItems] = useState<{ id: string; price_usd_cents: number; price_pixels: number | null; name: string; owned: boolean }[] | null>(null);
   const [giftBuying, setGiftBuying] = useState<string | null>(null);
+  const [giftError, setGiftError] = useState<string | null>(null);
   const [compareCopied, setCompareCopied] = useState(false);
   const [compareLang, setCompareLang] = useState<"en" | "pt">("en");
   const [clickedAd, setClickedAd] = useState<import("@/lib/skyAds").SkyAd | null>(null);
@@ -988,14 +990,15 @@ function HomeContent() {
     if (!selectedBuilding || !session) return;
     setGiftModalOpen(true);
     setGiftItems(null);
+    setGiftError(null);
     try {
       const res = await fetch("/api/items");
       if (!res.ok) return;
       const { items } = await res.json();
       const receiverOwned = new Set(selectedBuilding.owned_items ?? []);
       const NON_GIFTABLE = new Set(["flag", "custom_color"]);
-      const available = (items as { id: string; price_usd_cents: number; category: string }[])
-        .filter((i) => i.price_usd_cents > 0 && !NON_GIFTABLE.has(i.id))
+      const available = (items as { id: string; name: string; price_usd_cents: number; price_pixels: number | null; category: string }[])
+        .filter((i) => (i.price_pixels ?? i.price_usd_cents) > 0 && !NON_GIFTABLE.has(i.id))
         .map((i) => ({ ...i, owned: receiverOwned.has(i.id) }));
       setGiftItems(available);
     } catch { /* ignore */ }
@@ -1005,22 +1008,35 @@ function HomeContent() {
   const handleGiftCheckout = useCallback(async (itemId: string) => {
     if (!selectedBuilding || giftBuying) return;
     setGiftBuying(itemId);
+    setGiftError(null);
     try {
-      const res = await fetch("/api/checkout", {
+      const res = await fetch("/api/pixels/spend", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           item_id: itemId,
-          provider: "stripe",
           gifted_to_login: selectedBuilding.login,
         }),
       });
       const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
+      if (res.ok && data.success) {
+        setGiftError(null);
+        setGiftItems((prev) =>
+          prev?.map((i) => i.id === itemId ? { ...i, owned: true } : i) ?? null
+        );
+      } else {
+        const msg = data.error === "insufficient_balance"
+          ? "Not enough PX. Buy more at /pixels"
+          : data.error === "already_owned"
+            ? "They already own this item"
+            : data.error || "Gift failed";
+        setGiftError(msg);
       }
-    } catch { /* ignore */ }
-    finally { setGiftBuying(null); }
+    } catch {
+      setGiftError("Network error. Try again.");
+    } finally {
+      setGiftBuying(null);
+    }
   }, [selectedBuilding, giftBuying]);
 
 
@@ -3776,11 +3792,14 @@ function HomeContent() {
                       )}
                     </Link>
                     {myBuilding?.claimed && (
-                      <XpBar
-                        xpTotal={myBuilding.xp_total ?? 0}
-                        xpLevel={myBuilding.xp_level ?? 1}
-                        accent={theme.accent}
-                      />
+                      <>
+                        <XpBar
+                          xpTotal={myBuilding.xp_total ?? 0}
+                          xpLevel={myBuilding.xp_level ?? 1}
+                          accent={theme.accent}
+                        />
+                        <PixelBalance />
+                      </>
                     )}
                     <button
                       onClick={handleSignOut}
@@ -4669,7 +4688,7 @@ function HomeContent() {
             {/* No fullscreen backdrop — let the user orbit the camera freely */}
             <div className="pointer-events-auto fixed z-40
             bottom-0 left-0 right-0
-            sm:bottom-auto sm:left-auto sm:right-5 sm:top-1/2 sm:-translate-y-1/2"
+            sm:bottom-auto sm:right-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2"
             >
               <div className="relative border-t-[3px] border-border bg-bg-raised/95 backdrop-blur-sm
               w-full sm:w-95 sm:border-[3px] sm:max-h-[85vh] sm:overflow-y-auto
@@ -5236,11 +5255,18 @@ function HomeContent() {
                         {ITEM_NAMES[item.id] ?? item.id}
                       </span>
                       <span className="text-[10px] shrink-0" style={{ color: item.owned ? undefined : theme.accent }}>
-                        {item.owned ? "Owned" : isBuying ? "..." : `$${(item.price_usd_cents / 100).toFixed(2)}`}
+                        {item.owned ? "Owned" : isBuying ? "..." : item.price_pixels != null ? `${item.price_pixels} PX` : `$${(item.price_usd_cents / 100).toFixed(2)}`}
                       </span>
                     </button>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Error message */}
+            {giftError && (
+              <div className="border-t border-border px-4 py-2 bg-red-500/10">
+                <p className="text-[10px] text-red-400 normal-case text-center">{giftError}</p>
               </div>
             )}
           </div>

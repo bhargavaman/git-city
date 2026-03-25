@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getOwnedItems } from "@/lib/items";
 import type { ShopItem } from "@/lib/items";
 import { calcBuildingDims } from "@/lib/github";
+import { getBalance } from "@/lib/pixels";
 import ShopClient from "@/components/ShopClient";
 
 interface Props {
@@ -156,6 +157,9 @@ export default async function ShopPage({ params, searchParams }: Props) {
 
   const achievements = (achievementsResult.data ?? []).map((a: { achievement_id: string }) => a.achievement_id);
 
+  // Fetch PX balance
+  const wallet = await getBalance(dev.id);
+
   // A10: Compute top 3 most purchased items (min 5 purchases)
   const purchaseCounts: Record<string, number> = {};
   const weeklyPurchaseCounts: Record<string, number> = {};
@@ -256,6 +260,7 @@ export default async function ShopPage({ params, searchParams }: Props) {
           popularItems={popularItems}
           purchaseCounts={weeklyPurchaseCounts}
           totalPurchaseCounts={purchaseCounts}
+          pxBalance={wallet.balance}
         />
 
         {/* Back links */}

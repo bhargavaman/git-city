@@ -85,6 +85,41 @@ export async function POST(request: Request) {
           break;
         }
 
+        // --- Pixel package purchase ---
+        const { data: pixelPurchase } = await sb
+          .from("pixel_purchases")
+          .select("id, developer_id, package_id, status")
+          .eq("provider_tx_id", pixId)
+          .eq("status", "pending")
+          .maybeSingle();
+
+        if (pixelPurchase) {
+          const { data: pkg } = await sb
+            .from("pixel_packages")
+            .select("pixels, bonus_pixels")
+            .eq("id", pixelPurchase.package_id)
+            .single();
+
+          if (pkg) {
+            const totalPx = pkg.pixels + pkg.bonus_pixels;
+            await sb.rpc("credit_pixels", {
+              p_developer_id: pixelPurchase.developer_id,
+              p_amount: totalPx,
+              p_source: "purchase",
+              p_reference_id: pixelPurchase.id,
+              p_reference_type: "pixel_purchase",
+              p_description: `Purchased ${totalPx} PX (${pixelPurchase.package_id})`,
+              p_idempotency_key: `abacatepay:${pixId}`,
+            });
+
+            await sb
+              .from("pixel_purchases")
+              .update({ status: "completed", pixels_credited: totalPx })
+              .eq("id", pixelPurchase.id);
+          }
+          break;
+        }
+
         // --- Shop item purchase ---
         const { data: purchase } = await sb
           .from("purchases")
@@ -153,6 +188,13 @@ export async function POST(request: Request) {
           .eq("provider_tx_id", pixId)
           .eq("status", "pending")
           .eq("provider", "abacatepay");
+
+        // Expire pixel purchases
+        await sb
+          .from("pixel_purchases")
+          .update({ status: "expired" })
+          .eq("provider_tx_id", pixId)
+          .eq("status", "pending");
 
         // Clean up expired sky ad rows
         await sb

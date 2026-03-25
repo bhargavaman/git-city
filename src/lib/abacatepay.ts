@@ -79,3 +79,25 @@ export async function createPixQrCode(
     externalId: `${developerId}:${itemId}`,
   });
 }
+
+/** Pixel packages: looks up price from DB. */
+export async function createPixQrCodeForPackage(
+  packageId: string,
+  developerId: number,
+  githubLogin: string,
+): Promise<{ brCode: string; brCodeBase64: string; pixId: string }> {
+  const sb = getSupabaseAdmin();
+  const { data: pkg } = await sb
+    .from("pixel_packages")
+    .select("*")
+    .eq("id", packageId)
+    .eq("is_active", true)
+    .single();
+  if (!pkg) throw new Error("Package not found");
+
+  return createPixQrCodeRaw({
+    amountCents: pkg.price_brl_cents,
+    description: `${pkg.pixels + pkg.bonus_pixels} Pixels - ${githubLogin}`,
+    externalId: `px:${developerId}:${packageId}`,
+  });
+}

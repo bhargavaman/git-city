@@ -392,6 +392,8 @@ function HomeContent() {
   const [buildings, setBuildings] = useState<CityBuilding[]>([]);
   // Keep raw dev records so we can inject new devs and regenerate layout locally
   const rawDevsRef = useRef<DeveloperRecord[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dropsPayloadRef = useRef<any[]>([]);
   const [plazas, setPlazas] = useState<CityPlaza[]>([]);
   const [decorations, setDecorations] = useState<CityDecoration[]>([]);
   const [river, setRiver] = useState<CityRiver | null>(null);
@@ -424,6 +426,20 @@ function HomeContent() {
     }
   }, []);
 
+
+  // Merge active drops into a freshly generated layout (by rank)
+  const mergeDrops = useCallback((blds: CityBuilding[]) => {
+    const payload = dropsPayloadRef.current;
+    if (payload.length === 0) return;
+    const dropByRank = new Map<number, (typeof payload)[0]>();
+    for (const d of payload) dropByRank.set(d.n, d);
+    for (const b of blds) {
+      const d = dropByRank.get(b.rank);
+      if (d) {
+        b.active_drop = { id: d.id, rarity: d.r, points: d.p, max_pulls: d.m, pull_count: d.c, expires_at: d.x };
+      }
+    }
+  }, []);
 
   const [hud, setHud] = useState({ speed: 0, altitude: 0 });
   const [playerPos, setPlayerPos] = useState<{ x: number; z: number }>({ x: 0, z: 0 });
@@ -1261,20 +1277,10 @@ function HomeContent() {
     } catch { }
 
     rawDevsRef.current = allDevs;
+    if (dropsPayload.length > 0) dropsPayloadRef.current = dropsPayload;
     setStats(cityStats);
     const layout = generateCityLayout(allDevs);
-
-    // Decode obfuscated drops (_d) and merge into buildings by rank
-    if (dropsPayload.length > 0) {
-      const dropByRank = new Map<number, typeof dropsPayload[0]>();
-      for (const d of dropsPayload) dropByRank.set(d.n, d);
-      for (const b of layout.buildings) {
-        const d = dropByRank.get(b.rank);
-        if (d) {
-          b.active_drop = { id: d.id, rarity: d.r, points: d.p, max_pulls: d.m, pull_count: d.c, expires_at: d.x };
-        }
-      }
-    }
+    mergeDrops(layout.buildings);
 
     setBuildings(layout.buildings);
     setPlazas(layout.plazas);
@@ -1395,20 +1401,10 @@ function HomeContent() {
         await new Promise((r) => setTimeout(r, 0)); // yield to browser
 
         rawDevsRef.current = allDevs;
+        if (dropsPayload.length > 0) dropsPayloadRef.current = dropsPayload;
         setStats(cityStats);
         const finalLayout = generateCityLayout(allDevs);
-
-        // Decode obfuscated drops (_d) and merge into buildings by rank
-        if (dropsPayload.length > 0) {
-          const dropByRank = new Map<number, typeof dropsPayload[0]>();
-          for (const d of dropsPayload) dropByRank.set(d.n, d);
-          for (const b of finalLayout.buildings) {
-            const d = dropByRank.get(b.rank);
-            if (d) {
-              b.active_drop = { id: d.id, rarity: d.r, points: d.p, max_pulls: d.m, pull_count: d.c, expires_at: d.x };
-            }
-          }
-        }
+        mergeDrops(finalLayout.buildings);
 
         setBuildings(finalLayout.buildings);
         setPlazas(finalLayout.plazas);
@@ -1551,6 +1547,7 @@ function HomeContent() {
           };
           rawDevsRef.current = [...rawDevsRef.current, newDev];
           const layout = generateCityLayout(rawDevsRef.current);
+          mergeDrops(layout.buildings);
           setBuildings(layout.buildings);
           setPlazas(layout.plazas);
           setDecorations(layout.decorations);
@@ -1673,6 +1670,7 @@ function HomeContent() {
         };
         rawDevsRef.current = [...rawDevsRef.current, newDev];
         const layout = generateCityLayout(rawDevsRef.current);
+        mergeDrops(layout.buildings);
         setBuildings(layout.buildings);
         setPlazas(layout.plazas);
         setDecorations(layout.decorations);
@@ -1858,6 +1856,7 @@ function HomeContent() {
         : [...rawDevsRef.current, syncedDev];
 
       const layout = generateCityLayout(rawDevsRef.current);
+      mergeDrops(layout.buildings);
       setBuildings(layout.buildings);
       setPlazas(layout.plazas);
       setDecorations(layout.decorations);

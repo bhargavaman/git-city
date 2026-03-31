@@ -21,22 +21,22 @@ export async function GET() {
     return NextResponse.json({ company: null, listings: [] });
   }
 
-  // Get listings
-  const { data: listings } = await admin
-    .from("job_listings")
-    .select("*")
-    .eq("company_id", company.id)
-    .order("created_at", { ascending: false });
-
-  // Update last_dashboard_visit
-  await admin
-    .from("job_company_profiles")
-    .update({ last_dashboard_visit: new Date().toISOString() })
-    .eq("id", company.id);
+  // Fetch listings + update last visit in parallel
+  const [listingsRes] = await Promise.all([
+    admin
+      .from("job_listings")
+      .select("*")
+      .eq("company_id", company.id)
+      .order("created_at", { ascending: false }),
+    admin
+      .from("job_company_profiles")
+      .update({ last_dashboard_visit: new Date().toISOString() })
+      .eq("id", company.id),
+  ]);
 
   return NextResponse.json({
     company,
-    listings: listings ?? [],
+    listings: listingsRes.data ?? [],
     lastVisit: company.last_dashboard_visit,
   });
 }

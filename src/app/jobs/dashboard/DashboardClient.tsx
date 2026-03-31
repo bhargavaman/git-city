@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { JobCompanyProfile, JobListing } from "@/lib/jobs/types";
 import { SENIORITY_LABELS, ROLE_TYPE_LABELS, LOCATION_TYPE_LABELS, SALARY_PERIOD_LABELS } from "@/lib/jobs/constants";
@@ -33,13 +34,27 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_FILTERS = ["all", "active", "pending_review", "paused", "draft", "filled", "expired", "rejected"] as const;
 
+type SortKey = "recent" | "views" | "applies" | "salary";
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: "recent", label: "Most Recent" },
+  { value: "views", label: "Most Views" },
+  { value: "applies", label: "Most Applications" },
+  { value: "salary", label: "Highest Salary" },
+];
+
 export default function DashboardClient({ advertiserEmail }: { advertiserEmail: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read initial state from URL
   const [company, setCompany] = useState<JobCompanyProfile | null>(null);
   const [listings, setListings] = useState<JobListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "all");
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [sortBy, setSortBy] = useState<SortKey>((searchParams.get("sort") as SortKey) ?? "recent");
   const [showSettings, setShowSettings] = useState(false);
 
   // Setup form
@@ -53,6 +68,19 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
 
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Sync filters to URL
+  const updateURL = useCallback((params: { status?: string; q?: string; sort?: string }) => {
+    const url = new URLSearchParams();
+    const s = params.status ?? statusFilter;
+    const q = params.q ?? search;
+    const so = params.sort ?? sortBy;
+    if (s && s !== "all") url.set("status", s);
+    if (q) url.set("q", q);
+    if (so && so !== "recent") url.set("sort", so);
+    const qs = url.toString();
+    router.replace(`/jobs/dashboard${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [statusFilter, search, sortBy, router]);
+
   useEffect(() => {
     fetchDashboard();
     const params = new URLSearchParams(window.location.search);
@@ -61,8 +89,9 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
         ? "Your listing has been submitted for review. We'll email you when it's live."
         : "Payment received! Your listing is now under review.");
       localStorage.removeItem("gc_post_job_draft");
-      window.history.replaceState({}, "", "/jobs/dashboard");
+      router.replace("/jobs/dashboard", { scroll: false });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchDashboard() {
@@ -145,8 +174,20 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
   const totalViews = listings.reduce((sum, l) => sum + l.view_count, 0);
   const totalApplies = listings.reduce((sum, l) => sum + l.apply_count, 0);
 
-  // Filtered listings
-  const filtered = statusFilter === "all" ? listings : listings.filter((l) => l.status === statusFilter);
+  // Filtered + searched + sorted listings
+  let filtered = statusFilter === "all" ? listings : listings.filter((l) => l.status === statusFilter);
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    filtered = filtered.filter((l) => l.title.toLowerCase().includes(q));
+  }
+  filtered = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case "views": return b.view_count - a.view_count;
+      case "applies": return b.apply_count - a.apply_count;
+      case "salary": return b.salary_max - a.salary_max;
+      default: return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
+    }
+  });
 
   // Status counts for filter badges
   const statusCounts: Record<string, number> = {};
@@ -283,34 +324,66 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
               <StatCard value={String(totalApplies)} label="Applications" accent="#c8e64a" />
             </div>
 
-            {/* Filter tabs */}
-            <div className="mt-6 flex flex-wrap gap-1.5">
-              {STATUS_FILTERS.map((s) => {
-                const count = s === "all" ? listings.length : (statusCounts[s] ?? 0);
-                if (s !== "all" && count === 0) return null;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className="cursor-pointer border-[2px] px-3 py-1.5 text-xs transition-colors"
-                    style={{
-                      borderColor: statusFilter === s ? (STATUS_COLORS[s] ?? "#c8e64a") : "var(--color-border)",
-                      color: statusFilter === s ? (STATUS_COLORS[s] ?? "#c8e64a") : "var(--color-muted)",
-                      backgroundColor: statusFilter === s ? `${STATUS_COLORS[s] ?? "#c8e64a"}10` : "transparent",
-                    }}
-                  >
-                    {s === "all" ? "All" : STATUS_LABELS[s]} ({count})
-                  </button>
-                );
-              })}
+            {/* Filter tabs + Search + Sort */}
+            <div className="mt-6 space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {STATUS_FILTERS.map((s) => {
+                  const count = s === "all" ? listings.length : (statusCounts[s] ?? 0);
+                  if (s !== "all" && count === 0) return null;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => { setStatusFilter(s); updateURL({ status: s }); }}
+                      className="cursor-pointer border-[2px] px-3 py-1.5 text-xs transition-colors"
+                      style={{
+                        borderColor: statusFilter === s ? (STATUS_COLORS[s] ?? "#c8e64a") : "var(--color-border)",
+                        color: statusFilter === s ? (STATUS_COLORS[s] ?? "#c8e64a") : "var(--color-muted)",
+                        backgroundColor: statusFilter === s ? `${STATUS_COLORS[s] ?? "#c8e64a"}10` : "transparent",
+                      }}
+                    >
+                      {s === "all" ? "All" : STATUS_LABELS[s]} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="relative w-full sm:max-w-xs">
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); updateURL({ q: e.target.value }); }}
+                    placeholder="Search by title..."
+                    className="w-full border-[2px] border-border bg-bg pl-8 pr-3 py-2 text-xs text-cream normal-case outline-none placeholder:text-dim focus:border-lime/40"
+                  />
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dim text-xs pointer-events-none">&#9906;</span>
+                  {search && (
+                    <button
+                      onClick={() => { setSearch(""); updateURL({ q: "" }); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-dim hover:text-cream text-xs cursor-pointer"
+                    >
+                      &#10005;
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={sortBy}
+                  onChange={(e) => { const v = e.target.value as SortKey; setSortBy(v); updateURL({ sort: v }); }}
+                  className="cursor-pointer border-[2px] border-border bg-bg px-3 py-2 text-xs text-muted outline-none"
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Listings */}
-            <div className="mt-4" aria-live="polite">
+            <div className="mt-3" aria-live="polite">
               {filtered.length === 0 ? (
                 <div className="border-[3px] border-border bg-bg-raised p-10 text-center space-y-4">
                   <p className="text-xs text-muted">
-                    {listings.length === 0 ? "No listings yet." : "No listings match this filter."}
+                    {listings.length === 0 ? "No listings yet." : search.trim() ? "No listings match your search." : "No listings match this filter."}
                   </p>
                   {listings.length === 0 && (
                     <Link href="/jobs/dashboard/new" className="btn-press inline-block bg-lime px-6 py-3 text-xs text-bg cursor-pointer" style={{ boxShadow: "3px 3px 0 0 #5a7a00" }}>
@@ -319,11 +392,14 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {filtered.map((listing) => (
-                    <ListingCard key={listing.id} listing={listing} onAction={handleAction} />
-                  ))}
-                </div>
+                <>
+                  <div className="border border-border overflow-hidden">
+                    {filtered.map((listing) => (
+                      <ListingCard key={listing.id} listing={listing} onAction={handleAction} />
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[10px] text-dim text-right">{filtered.length} of {listings.length} listings</p>
+                </>
               )}
             </div>
           </>
@@ -401,101 +477,149 @@ export default function DashboardClient({ advertiserEmail }: { advertiserEmail: 
 /* ─── Listing Card ─── */
 
 function ListingCard({ listing, onAction }: { listing: JobListing; onAction: (id: string, action: string) => void }) {
+  const [expanded, setExpanded] = useState(false);
   const daysLeft = listing.expires_at
     ? Math.max(0, Math.ceil((new Date(listing.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 
   const statusColor = STATUS_COLORS[listing.status] ?? "#8c8c9c";
+  const hasApplicants = listing.apply_count > 0;
 
   return (
-    <div className="border-[3px] border-border bg-bg-raised p-5 sm:p-6">
-      {/* Top row: title + status */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="border border-border bg-bg-raised transition-colors hover:bg-bg-card">
+      {/* Compact row — always visible */}
+      <div
+        className="cursor-pointer px-4 py-3 flex items-center gap-3"
+        onClick={() => setExpanded(!expanded)}
+      >
+        {/* Title + meta */}
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm text-cream truncate">{listing.title}</h3>
-          <p className="mt-1 text-xs text-muted">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm text-cream truncate">{listing.title}</h3>
+            {hasApplicants && (
+              <span className="shrink-0 border border-lime/30 px-1.5 py-0.5 text-[10px] text-lime tabular-nums">
+                {listing.apply_count} {listing.apply_count === 1 ? "applicant" : "applicants"}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted">
             {SENIORITY_LABELS[listing.seniority]} · {ROLE_TYPE_LABELS[listing.role_type]}
             {listing.location_type && <> · {LOCATION_TYPE_LABELS[listing.location_type]}</>}
           </p>
         </div>
-        <div className="shrink-0 flex items-center gap-3">
-          {daysLeft !== null && listing.status === "active" && (
-            <span className="text-xs text-dim">{daysLeft}d left</span>
+
+        {/* Right side: metrics + status */}
+        <div className="hidden sm:flex items-center gap-4 shrink-0">
+          {listing.salary_min > 0 && (
+            <span className="text-xs text-lime tabular-nums">
+              {listing.salary_currency} {fmtSalary(listing.salary_min)}-{fmtSalary(listing.salary_max)}
+            </span>
           )}
-          <span className="border-[2px] px-2.5 py-1 text-xs" style={{ borderColor: `${statusColor}50`, color: statusColor }}>
+          <span className="text-xs text-dim tabular-nums w-16 text-right">{listing.view_count} views</span>
+          {daysLeft !== null && listing.status === "active" && (
+            <span className={`text-xs tabular-nums w-14 text-right ${daysLeft <= 5 ? "text-yellow-400" : "text-dim"}`}>{daysLeft}d left</span>
+          )}
+          <span className="w-20 text-center border px-2 py-0.5 text-[10px]" style={{ borderColor: `${statusColor}40`, color: statusColor }}>
             {STATUS_LABELS[listing.status] ?? listing.status}
           </span>
         </div>
-      </div>
 
-      {/* Metrics row */}
-      <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted">
-        <span>{listing.view_count} views</span>
-        <span>{listing.apply_count} applications</span>
-        <span>{listing.profile_count} profiles shared</span>
-        {listing.salary_min > 0 && (
-          <span className="text-lime">
-            {listing.salary_currency} {listing.salary_min.toLocaleString()}-{listing.salary_max.toLocaleString()}
-            {SALARY_PERIOD_LABELS[listing.salary_period] ?? "/mo"}
+        {/* Mobile status */}
+        <div className="sm:hidden shrink-0">
+          <span className="border px-2 py-0.5 text-[10px]" style={{ borderColor: `${statusColor}40`, color: statusColor }}>
+            {STATUS_LABELS[listing.status] ?? listing.status}
           </span>
-        )}
+        </div>
+
+        {/* Chevron */}
+        <span className="text-xs text-dim shrink-0">{expanded ? "▾" : "▸"}</span>
       </div>
 
-      {/* Status-specific info */}
-      {listing.status === "pending_review" && (
-        <p className="mt-3 text-xs text-dim normal-case">Being reviewed. Usually takes less than 24 hours.</p>
-      )}
-      {listing.status === "rejected" && listing.rejection_reason && (
-        <p className="mt-3 text-xs text-red-400/70 normal-case">Reason: {listing.rejection_reason}</p>
-      )}
+      {/* Expanded details */}
+      {expanded && (
+        <div className="border-t border-border/30 px-4 py-3 space-y-3">
+          {/* Metrics grid */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <MiniStat value={listing.view_count} label="Views" />
+            <MiniStat value={listing.apply_count} label="Applications" accent={hasApplicants} />
+            {listing.salary_min > 0 && (
+              <div className="border border-border/30 px-3 py-2">
+                <p className="text-xs text-lime tabular-nums">{listing.salary_currency} {listing.salary_min.toLocaleString()}-{listing.salary_max.toLocaleString()}</p>
+                <p className="text-[10px] text-dim">Salary {SALARY_PERIOD_LABELS[listing.salary_period] ?? "/mo"}</p>
+              </div>
+            )}
+          </div>
 
-      {/* Actions */}
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-border/30 pt-4">
-        {listing.status === "active" && (
-          <>
-            <ActionBtn accent onClick={() => window.open(`/jobs/dashboard/${listing.id}/candidates`, "_self")}>Performance & Candidates</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
-            <ActionBtn onClick={() => onAction(listing.id, "pause")}>Pause</ActionBtn>
-            <ActionBtn onClick={() => onAction(listing.id, "fill")}>Mark Filled</ActionBtn>
-          </>
-        )}
-        {listing.status === "pending_review" && (
-          <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>Preview</ActionBtn>
-        )}
-        {listing.status === "draft" && (
-          <>
-            <ActionBtn accent onClick={() => onAction(listing.id, "checkout")}>Submit</ActionBtn>
-            <ActionBtn danger onClick={() => onAction(listing.id, "delete")}>Delete</ActionBtn>
-          </>
-        )}
-        {listing.status === "paused" && (
-          <>
-            <ActionBtn accent onClick={() => onAction(listing.id, "resume")}>Resume</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/dashboard/${listing.id}/candidates`, "_self")}>Performance & Candidates</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
-            <ActionBtn onClick={() => onAction(listing.id, "fill")}>Mark Filled</ActionBtn>
-          </>
-        )}
-        {listing.status === "expired" && (
-          <>
-            <ActionBtn accent onClick={() => onAction(listing.id, "checkout")}>Repost</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/dashboard/${listing.id}/candidates`, "_self")}>Performance & Candidates</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
-          </>
-        )}
-        {listing.status === "filled" && (
-          <>
-            <ActionBtn onClick={() => window.open(`/jobs/dashboard/${listing.id}/candidates`, "_self")}>Performance & Candidates</ActionBtn>
-            <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
-          </>
-        )}
-        {listing.status === "rejected" && (
-          <>
-            <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
-            <ActionBtn danger onClick={() => onAction(listing.id, "delete")}>Delete</ActionBtn>
-          </>
-        )}
-      </div>
+          {/* Status-specific info */}
+          {listing.status === "pending_review" && (
+            <p className="text-xs text-dim normal-case">Being reviewed. Usually takes less than 24 hours.</p>
+          )}
+          {listing.status === "rejected" && listing.rejection_reason && (
+            <p className="text-xs text-red-400/70 normal-case">Reason: {listing.rejection_reason}</p>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2">
+            {(listing.status === "active" || listing.status === "paused" || listing.status === "expired" || listing.status === "filled") && (
+              <ActionBtn accent onClick={() => window.open(`/jobs/dashboard/${listing.id}/candidates`, "_self")}>
+                Candidates{hasApplicants ? ` (${listing.apply_count})` : ""}
+              </ActionBtn>
+            )}
+            {listing.status === "active" && (
+              <>
+                <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
+                <ActionBtn onClick={() => onAction(listing.id, "pause")}>Pause</ActionBtn>
+                <ActionBtn onClick={() => onAction(listing.id, "fill")}>Mark Filled</ActionBtn>
+              </>
+            )}
+            {listing.status === "pending_review" && (
+              <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>Preview</ActionBtn>
+            )}
+            {listing.status === "draft" && (
+              <>
+                <ActionBtn accent onClick={() => onAction(listing.id, "checkout")}>Submit</ActionBtn>
+                <ActionBtn danger onClick={() => onAction(listing.id, "delete")}>Delete</ActionBtn>
+              </>
+            )}
+            {listing.status === "paused" && (
+              <>
+                <ActionBtn accent onClick={() => onAction(listing.id, "resume")}>Resume</ActionBtn>
+                <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
+                <ActionBtn onClick={() => onAction(listing.id, "fill")}>Mark Filled</ActionBtn>
+              </>
+            )}
+            {listing.status === "expired" && (
+              <>
+                <ActionBtn accent onClick={() => onAction(listing.id, "checkout")}>Repost</ActionBtn>
+                <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
+              </>
+            )}
+            {listing.status === "filled" && (
+              <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
+            )}
+            {listing.status === "rejected" && (
+              <>
+                <ActionBtn onClick={() => window.open(`/jobs/${listing.id}`, "_blank")}>View</ActionBtn>
+                <ActionBtn danger onClick={() => onAction(listing.id, "delete")}>Delete</ActionBtn>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtSalary(n: number): string {
+  if (n >= 1000) return (n / 1000).toFixed(0) + "K";
+  return String(n);
+}
+
+function MiniStat({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
+  return (
+    <div className="border border-border/30 px-3 py-2">
+      <p className={`text-xs tabular-nums ${accent ? "text-lime" : "text-cream"}`}>{value.toLocaleString()}</p>
+      <p className="text-[10px] text-dim">{label}</p>
     </div>
   );
 }

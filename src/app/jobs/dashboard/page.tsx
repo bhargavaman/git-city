@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getAdvertiserFromCookies } from "@/lib/advertiser-auth";
@@ -14,5 +15,9 @@ export default async function DashboardPage() {
     redirect("/business/login?redirect=/jobs/dashboard");
   }
 
-  return <DashboardClient advertiserEmail={advertiser.email} />;
+  return (
+    <Suspense>
+      <DashboardClient advertiserEmail={advertiser.email} />
+    </Suspense>
+  );
 }

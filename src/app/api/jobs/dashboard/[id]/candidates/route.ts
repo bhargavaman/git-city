@@ -45,29 +45,23 @@ export async function GET(
   const withProfileIds = applications.filter((a) => a.has_profile).map((a) => a.developer_id);
   const withoutProfile = applications.filter((a) => !a.has_profile).length;
 
-  // Get developer data for those with profiles
-  const { data: devs } = await admin
-    .from("developers")
-    .select("id, github_login, contributions_total, total_stars, public_repos, current_streak, level")
-    .in("id", devIds);
+  // Fetch all enrichment data in parallel
+  const [devsRes, profilesRes, projectsRes, experiencesRes] = await Promise.all([
+    admin
+      .from("developers")
+      .select("id, github_login, contributions_total, total_stars, public_repos, current_streak, xp_level")
+      .in("id", devIds),
+    withProfileIds.length > 0
+      ? admin.from("career_profiles").select("*").in("id", withProfileIds)
+      : Promise.resolve({ data: [] }),
+    admin.from("portfolio_projects").select("developer_id").in("developer_id", devIds),
+    admin.from("portfolio_experiences").select("developer_id").in("developer_id", devIds),
+  ]);
 
-  const { data: profiles } = await admin
-    .from("career_profiles")
-    .select("*")
-    .in("id", withProfileIds);
-
-  // Check portfolio data for quality scoring
-  const { data: projectRows } = await admin
-    .from("portfolio_projects")
-    .select("developer_id")
-    .in("developer_id", devIds);
-  const { data: experienceRows } = await admin
-    .from("portfolio_experiences")
-    .select("developer_id")
-    .in("developer_id", devIds);
-
-  const devsWithProjects = new Set((projectRows ?? []).map((r) => r.developer_id));
-  const devsWithExperiences = new Set((experienceRows ?? []).map((r) => r.developer_id));
+  const devs = devsRes.data;
+  const profiles = profilesRes.data;
+  const devsWithProjects = new Set((projectsRes.data ?? []).map((r) => r.developer_id));
+  const devsWithExperiences = new Set((experiencesRes.data ?? []).map((r) => r.developer_id));
 
   // Build candidates
   const candidates = (devs ?? []).map((dev) => {
@@ -84,7 +78,7 @@ export async function GET(
       contributions: dev.contributions_total ?? 0,
       stars: dev.total_stars ?? 0,
       streak: dev.current_streak ?? 0,
-      level: dev.level ?? 1,
+      level: dev.xp_level ?? 1,
       has_profile: !!profile,
       has_projects: devsWithProjects.has(dev.id),
       has_experiences: devsWithExperiences.has(dev.id),
@@ -97,7 +91,7 @@ export async function GET(
       stars: dev.total_stars ?? 0,
       repos: dev.public_repos ?? 0,
       streak: dev.current_streak ?? 0,
-      level: dev.level ?? 1,
+      level: dev.xp_level ?? 1,
       has_profile: !!profile,
       status: app?.status ?? "applied",
       applied_at: app?.created_at,

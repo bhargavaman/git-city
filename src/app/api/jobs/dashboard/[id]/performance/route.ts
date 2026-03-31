@@ -36,17 +36,30 @@ export async function GET(
     profiles: listing.profile_count ?? 0,
   };
 
-  // Daily events for sparklines (last 30 days)
+  // Fetch events and applications in parallel
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-  const { data: events } = await admin
-    .from("job_listing_events")
-    .select("event_type, created_at")
-    .eq("listing_id", id)
-    .gte("created_at", thirtyDaysAgo)
-    .order("created_at");
+  const [eventsRes, applicationsRes] = await Promise.all([
+    admin
+      .from("job_listing_events")
+      .select("event_type, created_at")
+      .eq("listing_id", id)
+      .gte("created_at", thirtyDaysAgo)
+      .order("created_at"),
+    admin
+      .from("job_applications")
+      .select("developer_id, has_profile, status, created_at")
+      .eq("listing_id", id),
+  ]);
 
-  // Bucket by day
+  const events = eventsRes.data;
+  const applications = applicationsRes.data;
+
+  // Bucket by day — fill all 30 days so the sparkline always has context
   const dailyCounts: Record<string, { views: number; applies: number }> = {};
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    dailyCounts[d.toISOString().slice(0, 10)] = { views: 0, applies: 0 };
+  }
   for (const e of events ?? []) {
     const day = e.created_at.slice(0, 10);
     if (!dailyCounts[day]) dailyCounts[day] = { views: 0, applies: 0 };
@@ -59,11 +72,6 @@ export async function GET(
     .map(([date, counts]) => ({ date, ...counts }));
 
   // Applicant breakdown
-  const { data: applications } = await admin
-    .from("job_applications")
-    .select("developer_id, has_profile, status, created_at")
-    .eq("listing_id", id);
-
   const profileIds = (applications ?? []).filter((a) => a.has_profile).map((a) => a.developer_id);
 
   let skillBreakdown: Record<string, number> = {};

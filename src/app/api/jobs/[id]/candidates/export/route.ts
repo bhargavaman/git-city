@@ -52,7 +52,7 @@ export async function GET(
   const [devsRes, profilesRes, projectsRes, experiencesRes] = await Promise.all([
     admin
       .from("developers")
-      .select("id, github_login, contributions_total, total_stars, public_repos, current_streak, level")
+      .select("id, github_login, contributions_total, total_stars, public_repos, current_streak, xp_level")
       .in("id", devIds),
     admin
       .from("career_profiles")
@@ -92,7 +92,7 @@ export async function GET(
       contributions: dev.contributions_total ?? 0,
       stars: dev.total_stars ?? 0,
       streak: dev.current_streak ?? 0,
-      level: dev.level ?? 1,
+      level: dev.xp_level ?? 1,
       has_profile: !!profile,
       has_projects: projectDevIds.has(dev.id),
       has_experiences: experienceDevIds.has(dev.id),
@@ -107,7 +107,7 @@ export async function GET(
       dev.total_stars ?? 0,
       dev.public_repos ?? 0,
       dev.current_streak ?? 0,
-      dev.level ?? 1,
+      dev.xp_level ?? 1,
       profile?.seniority ?? "",
       profile?.years_experience ?? "",
       escapeCSV((profile?.skills ?? []).join("; ")),

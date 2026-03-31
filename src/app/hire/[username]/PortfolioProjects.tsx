@@ -285,18 +285,22 @@ export default function PortfolioProjects({ projects: initialProjects, isOwner }
           </div>
         ) : (
           <div className="py-12 text-center">
-            <p className="text-lg text-muted/40 normal-case">Showcase your best work</p>
-            <p className="mt-2 text-sm text-muted/30 normal-case">
-              Add projects so visitors can see what you&apos;ve built.
-            </p>
-            {isOwner && (
-              <button
-                ref={triggerRef}
-                onClick={openNew}
-                className="cursor-pointer mt-5 border-[3px] border-[#c8e64a]/30 px-6 py-3 text-sm text-[#c8e64a] transition-colors hover:border-[#c8e64a] hover:bg-[#c8e64a]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c8e64a]/50"
-              >
-                + Add your first project
-              </button>
+            {isOwner ? (
+              <>
+                <p className="text-lg text-muted/40 normal-case">Showcase your best work</p>
+                <p className="mt-2 text-sm text-muted/30 normal-case">
+                  Add projects so visitors can see what you&apos;ve built.
+                </p>
+                <button
+                  ref={triggerRef}
+                  onClick={openNew}
+                  className="cursor-pointer mt-5 border-[3px] border-[#c8e64a]/30 px-6 py-3 text-sm text-[#c8e64a] transition-colors hover:border-[#c8e64a] hover:bg-[#c8e64a]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c8e64a]/50"
+                >
+                  + Add your first project
+                </button>
+              </>
+            ) : (
+              <p className="text-sm text-muted/30 normal-case">No projects yet.</p>
             )}
           </div>
         )}

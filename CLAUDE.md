@@ -34,6 +34,10 @@ supabase/
 - Migrations in `supabase/migrations/`, numbered sequentially
 - Never modify existing migrations, always create new ones
 - Run locally with `npx supabase db push`
+- **NEVER run UPDATE or DELETE on production data without explicit user approval**
+- **NEVER NULL out, drop, or modify columns that contain user data (emails, API keys, etc)**
+- When fixing security/permissions issues, ONLY change grants/policies — never touch the data itself
+- Always propose SQL as code for the user to review, never execute destructive SQL directly
 
 ## Git
 

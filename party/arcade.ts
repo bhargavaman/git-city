@@ -45,7 +45,7 @@ interface PlayerState {
 }
 
 type ClientMsg =
-  | { type: "move"; dir: Direction }
+  | { type: "move"; dir: Direction; seq?: number }
   | { type: "chat"; text: string }
   | { type: "sit"; x: number; y: number; dir: Direction }
   | { type: "stand" }
@@ -74,7 +74,7 @@ type ServerMsg =
   | { type: "sync"; players: PlayerState[] }
   | { type: "join"; player: PlayerState }
   | { type: "leave"; id: string }
-  | { type: "move"; id: string; x: number; y: number; dir: Direction }
+  | { type: "move"; id: string; x: number; y: number; dir: Direction; ackSeq?: number }
   | { type: "chat"; id: string; text: string }
   | { type: "chat_history"; entries: ChatLogEntry[] }
   | { type: "sit"; id: string; x: number; y: number; dir: Direction }
@@ -159,6 +159,22 @@ const DEFAULT_MAP: MapConfig = {
   mapJson: {},
 };
 
+interface FurnitureObject {
+  id: string;
+  sprite: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  collides: boolean;
+  sittable?: boolean;
+}
+
+interface TilePropertyEntry {
+  walkable: boolean;
+  type: "wall" | "floor" | "door";
+}
+
 interface ArcadeRoomRow {
   slug: string;
   name: string;
@@ -169,10 +185,56 @@ interface ArcadeRoomRow {
     width: number;
     height: number;
     tileSize: number;
-    layers: { collision: number[] };
+    tileProperties?: Record<string, TilePropertyEntry>;
+    layers: { ground?: number[]; collision: number[] };
+    furniture?: FurnitureObject[];
     objects: Array<{ type: string; x: number; y: number; dir?: string }>;
     [key: string]: unknown;
   };
+}
+
+// Must stay in sync with `rebuildCollision` in src/lib/arcade/engine/tileMap.ts.
+// Client and server have to compute the exact same collision grid, otherwise
+// client-side prediction will diverge from server authority on specific tiles
+// (furniture footprints, sittable items, walkable tile properties) and every
+// walk through those tiles will cause a reconciliation snap.
+function rebuildCollision(map: ArcadeRoomRow["map_json"]): number[] {
+  const { width, height, tileSize } = map;
+  const coll = new Array(width * height).fill(0);
+  const ground = map.layers.ground;
+
+  if (map.tileProperties && ground) {
+    for (let i = 0; i < coll.length; i++) {
+      const gid = ground[i];
+      const props = map.tileProperties[gid];
+      if (props && !props.walkable) coll[i] = 1;
+    }
+  }
+
+  if (Array.isArray(map.furniture)) {
+    for (const f of map.furniture) {
+      if (!f.collides) continue;
+      // Sittable furniture is walk-through (Gather-style) — matches client.
+      if (
+        f.sittable ||
+        f.sprite.includes("sofa_") ||
+        f.sprite.includes("chair_") ||
+        f.sprite.includes("puff_")
+      ) continue;
+      const ftx = Math.floor(f.x / tileSize);
+      const fty = Math.floor(f.y / tileSize);
+      const ftw = Math.floor(f.width / tileSize);
+      const fth = Math.floor(f.height / tileSize);
+      for (let dy = 0; dy < fth; dy++) {
+        for (let dx = 0; dx < ftw; dx++) {
+          const idx = (fty + dy) * width + (ftx + dx);
+          if (idx >= 0 && idx < coll.length) coll[idx] = 1;
+        }
+      }
+    }
+  }
+
+  return coll;
 }
 
 function parseMapConfig(row: ArcadeRoomRow): MapConfig {
@@ -183,12 +245,19 @@ function parseMapConfig(row: ArcadeRoomRow): MapConfig {
   const spawns = map.objects
     .filter((o) => o.type === "spawn")
     .map((o) => ({ x: o.x, y: o.y }));
+
+  // If the map defines tileProperties, the client rebuilds its collision grid
+  // from them + furniture. We must do the same so server/client agree.
+  const collision = map.tileProperties
+    ? rebuildCollision(map)
+    : map.layers.collision;
+
   return {
     name: map.name,
     width: map.width,
     height: map.height,
     tileSize: map.tileSize,
-    collision: map.layers.collision,
+    collision,
     seats,
     spawns: spawns.length > 0
       ? spawns
@@ -205,7 +274,15 @@ function seatKey(x: number, y: number): string {
 }
 
 // ─── Rate limiting ───────────────────────────────────────────
+// Virtual-time rate limiter for moves. Instead of rejecting messages that
+// arrive too close together (network jitter + TCP batching can deliver two
+// legit inputs in the same millisecond, which a naive check rejects and
+// causes visible reconciliation snaps), we advance a per-user virtual clock
+// by MOVE_INTERVAL_MS for each processed move. Legit jittery bursts get
+// processed; only sustained abuse (many moves crammed into a short real-time
+// window) exceeds the burst buffer and gets dropped.
 const MOVE_INTERVAL_MS = 100;
+const MOVE_BURST_BUFFER_MS = 500;
 const CHAT_INTERVAL_MS = 1000;
 const SIT_INTERVAL_MS = 500;
 const AVATAR_INTERVAL_MS = 2000;
@@ -318,32 +395,56 @@ export default class ArcadeServer implements Party.Server {
 
   // ── Load config + restore state ────────────────────────────
   async onStart() {
-    // 1. Try storage cache (fast, survives hibernation)
-    const cached = await this.room.storage.get<MapConfig>("mapConfig");
+    // Bump MAP_CACHE_VERSION whenever the collision-building logic changes so
+    // old cached mapConfigs (built with the old logic) get invalidated.
+    const MAP_CACHE_VERSION = 2;
+    const cachedVersion = await this.room.storage.get<number>("mapConfigVersion");
+    const cached = cachedVersion === MAP_CACHE_VERSION
+      ? await this.room.storage.get<MapConfig>("mapConfig")
+      : null;
+
     if (cached) {
       this.mapConfig = cached;
     } else {
-      // 2. Fetch from Supabase
       try {
         const config = await this.fetchMapFromSupabase();
         if (config) {
           this.mapConfig = config;
           await this.room.storage.put("mapConfig", config);
+          await this.room.storage.put("mapConfigVersion", MAP_CACHE_VERSION);
         }
       } catch (err) {
         console.error(`[arcade:${this.room.id}] Failed to load map:`, err);
-        // 3. Fallback: DEFAULT_MAP (already set)
       }
     }
 
     // Rebuild seat set from config
     this.seatSet = new Set(this.mapConfig.seats.map((s) => `${s.x},${s.y}`));
 
-    // Purge any stale player entries from previous deploys.
-    // Players are ephemeral — they only exist while a WebSocket connection is live.
-    const stale = await this.room.storage.list<PlayerState>({ prefix: "player:" });
-    for (const key of stale.keys()) {
-      await this.room.storage.delete(key);
+    // Restore players from storage, but only those with a live WebSocket
+    // connection. `onStart` runs on every hibernation wake — in-memory state
+    // is gone, so we rebuild from storage. Any player without a live conn
+    // is a ghost (disconnected during hibernation / stale from older deploys)
+    // and gets purged.
+    const liveUserIds = new Set<string>();
+    for (const c of this.room.getConnections()) {
+      const uid = (c.state as { userId?: string } | null)?.userId;
+      if (uid) liveUserIds.add(uid);
+    }
+
+    const stored = await this.room.storage.list<PlayerState>({ prefix: "player:" });
+    for (const [key, player] of stored) {
+      const userId = key.slice("player:".length);
+      if (!liveUserIds.has(userId)) {
+        await this.room.storage.delete(key);
+        continue;
+      }
+      this.players.set(userId, player);
+      const sk = seatKey(player.x, player.y);
+      if (this.seatSet.has(sk)) {
+        this.occupiedSeats.add(sk);
+        this.seatedAt.set(userId, sk);
+      }
     }
 
     // Restore chat log
@@ -542,6 +643,7 @@ export default class ArcadeServer implements Party.Server {
 
     conn.setState({ userId });
     this.players.set(userId, player);
+    this.room.storage.put(`player:${userId}`, player);
 
     // Send full state to new player
     const syncMsg: ServerMsg = { type: "sync", players: [...this.players.values()] };
@@ -592,9 +694,27 @@ export default class ArcadeServer implements Party.Server {
     const now = Date.now();
 
     if (msg.type === "move") {
-      const lastMoveTime = this.lastMove.get(userId) ?? 0;
-      if (now - lastMoveTime < MOVE_INTERVAL_MS) return;
-      this.lastMove.set(userId, now);
+      const ackSeq = typeof msg.seq === "number" ? msg.seq : undefined;
+
+      // Virtual-time rate limit: advance the per-user clock by MOVE_INTERVAL
+      // per processed move. Accepts jitter/batching; drops true spam only.
+      const prevLastMove = this.lastMove.get(userId) ?? 0;
+      const effectiveTime = Math.max(now, prevLastMove + MOVE_INTERVAL_MS);
+      if (effectiveTime - now > MOVE_BURST_BUFFER_MS) {
+        if (ackSeq !== undefined) {
+          const correction: ServerMsg = {
+            type: "move",
+            id: userId,
+            x: player.x,
+            y: player.y,
+            dir: player.dir,
+            ackSeq,
+          };
+          sender.send(JSON.stringify(correction));
+        }
+        return;
+      }
+      this.lastMove.set(userId, effectiveTime);
 
       const dir = msg.dir;
       if (!["up", "down", "left", "right"].includes(dir)) return;
@@ -608,7 +728,8 @@ export default class ArcadeServer implements Party.Server {
 
       if (!this.isWalkable(nx, ny)) {
         player.dir = dir;
-        const moveMsg: ServerMsg = { type: "move", id: userId, x: player.x, y: player.y, dir };
+        this.room.storage.put(`player:${userId}`, player);
+        const moveMsg: ServerMsg = { type: "move", id: userId, x: player.x, y: player.y, dir, ackSeq };
         this.room.broadcast(JSON.stringify(moveMsg));
         return;
       }
@@ -616,7 +737,8 @@ export default class ArcadeServer implements Party.Server {
       player.x = nx;
       player.y = ny;
       player.dir = dir;
-      const moveMsg: ServerMsg = { type: "move", id: userId, x: nx, y: ny, dir };
+      this.room.storage.put(`player:${userId}`, player);
+      const moveMsg: ServerMsg = { type: "move", id: userId, x: nx, y: ny, dir, ackSeq };
       this.room.broadcast(JSON.stringify(moveMsg));
     }
 
@@ -647,6 +769,7 @@ export default class ArcadeServer implements Party.Server {
       player.x = x;
       player.y = y;
       player.dir = dir;
+      this.room.storage.put(`player:${userId}`, player);
       const sitMsg: ServerMsg = { type: "sit", id: userId, x, y, dir };
       this.room.broadcast(JSON.stringify(sitMsg));
     }
@@ -674,6 +797,7 @@ export default class ArcadeServer implements Party.Server {
       const spriteId = msg.sprite_id;
       if (typeof spriteId !== "number" || !Number.isInteger(spriteId) || spriteId < 0 || spriteId > MAX_SPRITE_ID) return;
       player.sprite_id = spriteId;
+      this.room.storage.put(`player:${userId}`, player);
       const avatarMsg: ServerMsg = { type: "avatar", id: userId, sprite_id: spriteId };
       this.room.broadcast(JSON.stringify(avatarMsg));
     }
@@ -977,6 +1101,7 @@ export default class ArcadeServer implements Party.Server {
     if (takenOver) return;
 
     this.players.delete(userId);
+    this.room.storage.delete(`player:${userId}`);
     this.lastMove.delete(userId);
     this.lastChat.delete(userId);
     this.lastSit.delete(userId);
@@ -1042,6 +1167,7 @@ export default class ArcadeServer implements Party.Server {
               const spawn = this.randomSpawn();
               player.x = spawn.x;
               player.y = spawn.y;
+              this.room.storage.put(`player:${userId}`, player);
               const prevSeat = this.seatedAt.get(userId);
               if (prevSeat) {
                 this.occupiedSeats.delete(prevSeat);

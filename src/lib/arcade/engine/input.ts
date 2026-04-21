@@ -13,7 +13,9 @@ const KEY_MAP: Record<string, Direction> = {
   arrowright: "right",
 };
 
-const MOVE_INTERVAL_SEC = 0.15; // Time between tile steps
+const MOVE_INTERVAL_SEC = 0.15; // Matches LERP_DURATION in page.tsx — each lerp
+                                // completes exactly when the next move fires, giving
+                                // constant tile-velocity with no speed pulse.
 
 // ─── State ────────────────────────────────────────────────────
 const heldKeys = new Set<Direction>();
@@ -67,11 +69,10 @@ export function attachInput(
     heldKeys.delete(dir);
     heldKeys.add(dir);
 
-    // Instant response on direction change
-    const active = getActiveDir();
-    if (active !== lastActiveDir) {
-      moveCooldown = 0;
-    }
+    // Note: we intentionally do NOT reset moveCooldown on direction change.
+    // With client-side prediction, stacking a new-direction input on top of a
+    // still-pending old-direction input produces diagonal render artifacts.
+    // Letting the current tile-step complete first keeps motion clean.
   };
 
   const onKeyUp = (e: KeyboardEvent) => {
@@ -79,12 +80,6 @@ export function attachInput(
     if (!dir) return;
 
     heldKeys.delete(dir);
-
-    // If another key is still held, switch to it instantly
-    const active = getActiveDir();
-    if (active && active !== lastActiveDir) {
-      moveCooldown = 0;
-    }
   };
 
   const onBlur = () => {

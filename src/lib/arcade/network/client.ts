@@ -7,7 +7,7 @@ export interface ArcadeCallbacks {
   onSync: (players: PlayerState[]) => void;
   onJoin: (player: PlayerState) => void;
   onLeave: (id: string) => void;
-  onMove: (id: string, x: number, y: number, dir: PlayerState["dir"]) => void;
+  onMove: (id: string, x: number, y: number, dir: PlayerState["dir"], ackSeq?: number) => void;
   onChat: (id: string, text: string) => void;
   onChatHistory: (entries: ChatLogEntry[]) => void;
   onSit: (id: string, x: number, y: number, dir: PlayerState["dir"]) => void;
@@ -78,7 +78,7 @@ export function connect(token: string, callbacks: ArcadeCallbacks, spriteId?: nu
         callbacks.onLeave(msg.id);
         break;
       case "move":
-        callbacks.onMove(msg.id, msg.x, msg.y, msg.dir);
+        callbacks.onMove(msg.id, msg.x, msg.y, msg.dir, msg.ackSeq);
         break;
       case "chat":
         callbacks.onChat(msg.id, msg.text);

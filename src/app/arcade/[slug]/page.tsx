@@ -7,7 +7,7 @@ import type { PlayerState, ChatBubble, ChatLogEntry, Direction, AvatarConfig } f
 import { startGameLoop } from "@/lib/arcade/engine/gameLoop";
 import { loadSpritesheet, loadCozySprites, updateSpriteAnimation, resetSprites, loadPetSprites, resetPet, setActivePet, registerShopItems, setPlayerAvatar, preloadLoadout, getDefaultLoadout, loadoutToAvatar, type CozyLayer } from "@/lib/arcade/engine/sprites";
 import type { AvatarLoadout } from "@/lib/arcade/types";
-import { loadMapFromData, resetMap, type GameMap, type RoomPortal } from "@/lib/arcade/engine/tileMap";
+import { loadMapFromData, resetMap, isWalkable, type GameMap, type RoomPortal } from "@/lib/arcade/engine/tileMap";
 import { cozyUrl, COZY_BASE, resolveTilesetUrl } from "@/lib/arcade/assetBase";
 import {
   render,
@@ -50,7 +50,7 @@ import ArcadeGameOverlay from "@/components/arcade/ArcadeGameOverlay";
 import AvatarEditor from "@/components/arcade/AvatarEditor";
 import EditorMode from "@/components/arcade/EditorMode";
 
-const LERP_DURATION = 0.12;
+const LERP_DURATION = 0.15;
 const BUBBLE_DURATION = 5;
 const CHAT_LOG_MAX = 30;
 const SPRITE_NAMES = ["Alex", "Ruby", "Nova", "Atlas", "Lime", "Rose"];
@@ -148,6 +148,25 @@ interface InterpolatedPlayer extends PlayerState {
   idleGrace: number;
 }
 
+// Apply a direction to a tile coord. Mirrors the server's movement logic
+// so client-side prediction produces the same result as the server.
+function applyDir(x: number, y: number, dir: Direction): [number, number] {
+  if (dir === "up") return [x, y - 1];
+  if (dir === "down") return [x, y + 1];
+  if (dir === "left") return [x - 1, y];
+  return [x + 1, y];
+}
+
+// Toggle with: localStorage.setItem("arcadeDebug", "1") and reload.
+// Logs input, prediction, server acks, reconciliations, and snaps so we can
+// diagnose desync without reading the whole frame loop.
+const debugEnabled = (): boolean =>
+  typeof window !== "undefined" && window.localStorage?.getItem("arcadeDebug") === "1";
+function dlog(tag: string, data: Record<string, unknown>): void {
+  if (!debugEnabled()) return;
+  console.log(`[arcade:${tag}] ${performance.now().toFixed(0)}ms`, data);
+}
+
 export default function ArcadeRoomPage({
   params,
 }: {
@@ -223,6 +242,13 @@ export default function ArcadeRoomPage({
   const spriteIdRef = useRef<number | undefined>(undefined);
   const loadoutRef = useRef<AvatarLoadout | null>(null);
   const readyRef = useRef(false);
+
+  // ── Client-side prediction ──────────────────────────────────
+  // Local player moves instantly on input; server echoes back with ackSeq
+  // so we can drop confirmed inputs and reconcile against authoritative state.
+  const seqCounterRef = useRef(0);
+  const pendingInputsRef = useRef<Array<{ seq: number; dir: Direction }>>([]);
+  const serverPosRef = useRef<{ x: number; y: number; dir: Direction } | null>(null);
 
   const isTyping = useCallback(() => {
     return document.activeElement === chatInputRef.current
@@ -305,6 +331,14 @@ export default function ArcadeRoomPage({
       if (local && mapRef.current) {
         const ts = mapRef.current.tileSize;
         snapCamera(local.x * ts + ts / 2, local.y * ts + ts / 2, mapRef.current);
+        dlog("sync", {
+          localPos: { x: local.x, y: local.y, dir: local.dir },
+          prevPending: pendingInputsRef.current.length,
+          playerCount: pmap.size,
+        });
+        serverPosRef.current = { x: local.x, y: local.y, dir: local.dir };
+        pendingInputsRef.current = [];
+        seqCounterRef.current = 0;
       }
     },
     onJoin(player) {
@@ -327,10 +361,64 @@ export default function ArcadeRoomPage({
       bubblesRef.current = bubblesRef.current.filter((b) => b.id !== id);
       setPlayerCount(playersRef.current.size);
     },
-    onMove(id, x, y, dir) {
+    onMove(id, x, y, dir, ackSeq) {
       const p = playersRef.current.get(id);
       if (!p) return;
-      // Only animate walk if position actually changed (avoid animating against walls)
+
+      const isLocal = id === localIdRef.current;
+
+      // Local player with prediction: reconcile against authoritative state.
+      if (isLocal && ackSeq !== undefined) {
+        const beforePending = pendingInputsRef.current.length;
+        serverPosRef.current = { x, y, dir };
+        pendingInputsRef.current = pendingInputsRef.current.filter((i) => i.seq > ackSeq);
+
+        // Replay unacked inputs on top of server position to get new prediction.
+        let px = x, py = y, pdir: Direction = dir;
+        for (const input of pendingInputsRef.current) {
+          const [nx, ny] = applyDir(px, py, input.dir);
+          if (isWalkable(nx, ny)) { px = nx; py = ny; }
+          pdir = input.dir;
+        }
+
+        // If prediction already matches rendered state, nothing to do — smooth.
+        if (p.x === px && p.y === py && p.dir === pdir) {
+          dlog("ack/match", {
+            ackSeq, serverPos: { x, y, dir },
+            droppedPending: beforePending - pendingInputsRef.current.length,
+            stillPending: pendingInputsRef.current.length,
+          });
+          return;
+        }
+
+        // Divergence (rate-limit, map change, etc.): snap render state to prediction.
+        dlog("ack/SNAP", {
+          ackSeq,
+          delta: `render(${p.x},${p.y},${p.dir}) → predicted(${px},${py},${pdir})`,
+          server: `(${x},${y},${dir})`,
+          pending: pendingInputsRef.current.map((i) => `${i.seq}:${i.dir}`).join(","),
+        });
+        const t = Math.min(p.lerpTimer / LERP_DURATION, 1);
+        p.prevX = p.prevX + (p.x - p.prevX) * t;
+        p.prevY = p.prevY + (p.y - p.prevY) * t;
+        p.x = px;
+        p.y = py;
+        p.dir = pdir;
+        p.lerpTimer = 0;
+        p.walking = p.prevX !== px || p.prevY !== py;
+        return;
+      }
+
+      // Local without ackSeq shouldn't happen after prediction is on, but if it
+      // does (e.g. older server, or a sync fallback), still use this position
+      // as the authoritative baseline so future predictions stay aligned.
+      if (isLocal) {
+        dlog("move/local-no-ack", { pos: { x, y, dir } });
+        serverPosRef.current = { x, y, dir };
+        pendingInputsRef.current = [];
+      }
+
+      // Remote player (or local without ackSeq): interpolate to new tile.
       const moved = p.x !== x || p.y !== y;
       const t = Math.min(p.lerpTimer / LERP_DURATION, 1);
       p.prevX = p.prevX + (p.x - p.prevX) * t;
@@ -371,7 +459,11 @@ export default function ArcadeRoomPage({
       p.dir = dir;
       p.lerpTimer = LERP_DURATION;
       p.walking = false;
-      if (id === localIdRef.current) { setSitting(true); sittingRef.current = true; }
+      if (id === localIdRef.current) {
+        setSitting(true); sittingRef.current = true;
+        serverPosRef.current = { x, y, dir };
+        pendingInputsRef.current = [];
+      }
     },
     onStand(id, x, y) {
       const p = playersRef.current.get(id);
@@ -385,6 +477,8 @@ export default function ArcadeRoomPage({
         setSitting(false); sittingRef.current = false;
         setShowTerminal(false); terminalOpenRef.current = false;
         setShowArcadeGame(false); arcadeGameOpenRef.current = false;
+        serverPosRef.current = { x, y, dir: p.dir };
+        pendingInputsRef.current = [];
       }
     },
     onAvatar(id, spriteId) {
@@ -507,12 +601,58 @@ export default function ArcadeRoomPage({
       window.addEventListener("resize", onResize);
       cleanupResize = () => window.removeEventListener("resize", onResize);
 
-      // 5. Input handler
+      // 5. Input handler — client-side prediction: move locally first, then
+      // send to server with a sequence number. Server echoes ackSeq so we can
+      // reconcile. This makes local movement feel instant regardless of RTT.
       const onMoveDir = (dir: Direction) => {
-        if (editorModeRef.current) return; // Disable movement in editor
+        if (editorModeRef.current) return;
         if (terminalOpenRef.current) return;
         if (sittingRef.current) { sendStand(); return; }
-        sendMove({ type: "move", dir });
+
+        const seq = ++seqCounterRef.current;
+        const localId = localIdRef.current;
+        const localP = playersRef.current.get(localId);
+        const server = serverPosRef.current;
+
+        // If state isn't ready yet, skip prediction — server will correct us.
+        if (localP && server) {
+          // Predict from authoritative baseline + all pending inputs (including this one).
+          let px = server.x, py = server.y, pdir: Direction = server.dir;
+          for (const input of pendingInputsRef.current) {
+            const [nx, ny] = applyDir(px, py, input.dir);
+            if (isWalkable(nx, ny)) { px = nx; py = ny; }
+            pdir = input.dir;
+          }
+          const [nx, ny] = applyDir(px, py, dir);
+          const hitWall = !isWalkable(nx, ny);
+          if (!hitWall) { px = nx; py = ny; }
+          pdir = dir;
+
+          dlog("input/predict", {
+            seq, dir, hitWall,
+            server: { x: server.x, y: server.y, dir: server.dir },
+            pendingBefore: pendingInputsRef.current.length,
+            predicted: { x: px, y: py, dir: pdir },
+            render: { x: localP.x, y: localP.y, dir: localP.dir, lerp: localP.lerpTimer.toFixed(3) },
+          });
+
+          // Apply predicted state to local render. Preserve current interpolated
+          // position as the new lerp start to avoid visual teleport.
+          const t = Math.min(localP.lerpTimer / LERP_DURATION, 1);
+          const moved = localP.x !== px || localP.y !== py;
+          localP.prevX = localP.prevX + (localP.x - localP.prevX) * t;
+          localP.prevY = localP.prevY + (localP.y - localP.prevY) * t;
+          localP.x = px;
+          localP.y = py;
+          localP.dir = pdir;
+          localP.lerpTimer = 0;
+          localP.walking = moved || localP.walking;
+        } else {
+          dlog("input/noPredict", { seq, dir, hasLocal: !!localP, hasServer: !!server });
+        }
+
+        pendingInputsRef.current.push({ seq, dir });
+        sendMove({ type: "move", dir, seq });
       };
       cleanupInput = attachInput(onMoveDir, isTyping);
 
@@ -537,11 +677,12 @@ export default function ArcadeRoomPage({
           for (const p of playersRef.current.values()) {
             p.lerpTimer = Math.min(p.lerpTimer + dt, LERP_DURATION);
             if (p.lerpTimer >= LERP_DURATION) {
-              // Grace period: don't instantly set walking=false.
-              // If a new move arrives within ~50ms, we avoid the idle flicker.
+              // Grace period absorbs network jitter between consecutive moves
+              // (MOVE_INTERVAL is ~150ms + round-trip). Without this the
+              // walk animation snaps back to idle every step.
               if (p.walking) {
                 p.idleGrace = (p.idleGrace ?? 0) + dt;
-                if (p.idleGrace >= 0.05) {
+                if (p.idleGrace >= 0.12) {
                   p.walking = false;
                   p.idleGrace = 0;
                 }

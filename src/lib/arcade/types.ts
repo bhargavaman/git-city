@@ -63,7 +63,7 @@ export interface ChatLogEntry {
 
 // ─── Protocol: Client → Server ────────────────────────────────
 export type ClientMsg =
-  | { type: "move"; dir: Direction }
+  | { type: "move"; dir: Direction; seq?: number }
   | { type: "chat"; text: string }
   | { type: "sit"; x: number; y: number; dir: Direction }
   | { type: "stand" }
@@ -97,7 +97,7 @@ export type ServerMsg =
   | { type: "sync"; players: PlayerState[] }
   | { type: "join"; player: PlayerState }
   | { type: "leave"; id: string }
-  | { type: "move"; id: string; x: number; y: number; dir: Direction }
+  | { type: "move"; id: string; x: number; y: number; dir: Direction; ackSeq?: number }
   | { type: "chat"; id: string; text: string }
   | { type: "chat_history"; entries: ChatLogEntry[] }
   | { type: "sit"; id: string; x: number; y: number; dir: Direction }

@@ -12,7 +12,7 @@ const CREAM = "#e8dcc8";
 
 type Currency = "usd" | "brl";
 type PreviewVehicle = "rooftop_sign" | "blimp" | "plane" | "led_wrap" | "billboard" | null;
-type PackageId = "foundation" | "skyline" | "landmark" | null;
+type CheckoutPkg = "foundation" | "skyline" | null;
 
 const NOTABLE_DEVS = [
   { login: "torvalds", name: "Linus Torvalds" },
@@ -29,11 +29,11 @@ const FAQ = [
   },
   {
     q: "What's included in each package?",
-    a: "Foundation includes 2 rooftop signs. Skyline adds a blimp, LED wrap, and plane. Landmark includes everything plus a custom 3D building and social media launch posts.",
+    a: "Foundation includes 2 rooftop signs. Skyline adds a blimp, LED wrap, and plane. Landmark includes everything plus a custom 3D building and social media launch posts — Landmark pricing is custom, contact us for a quote.",
   },
   {
     q: "How do I pay?",
-    a: "Credit card, Apple Pay, or Google Pay via Stripe. Secure checkout, cancel anytime.",
+    a: "Foundation and Skyline: credit card, Apple Pay, or Google Pay via Stripe. Cancel anytime. Landmark is invoiced separately after we agree on scope.",
   },
   {
     q: "Can I change my ad after buying?",
@@ -52,13 +52,12 @@ const FAQ = [
 const PACKAGE_LABELS: Record<string, string> = {
   foundation: "Foundation",
   skyline: "Skyline",
-  landmark: "Landmark",
 };
 
 /* ─────────────── main component ─────────────── */
 export default function AdvertiseLanding() {
   const [currency, setCurrency] = useState<Currency>("usd");
-  const [checkoutPkg, setCheckoutPkg] = useState<PackageId>(null);
+  const [checkoutPkg, setCheckoutPkg] = useState<CheckoutPkg>(null);
   const [brand, setBrand] = useState("");
   const [text, setText] = useState("");
   const [color, setColor] = useState("#f8d880");
@@ -67,6 +66,18 @@ export default function AdvertiseLanding() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [previewVehicle, setPreviewVehicle] = useState<PreviewVehicle>(null);
+
+  // Landmark contact modal
+  const [landmarkOpen, setLandmarkOpen] = useState(false);
+  const [cName, setCName] = useState("");
+  const [cEmail, setCEmail] = useState("");
+  const [cCompany, setCCompany] = useState("");
+  const [cWebsite, setCWebsite] = useState("");
+  const [cMessage, setCMessage] = useState("");
+  const [cLoading, setCLoading] = useState(false);
+  const [cError, setCError] = useState("");
+  const [cSuccess, setCSuccess] = useState(false);
+
   const packagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,11 +91,66 @@ export default function AdvertiseLanding() {
     packagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
-  function openCheckout(pkg: PackageId) {
+  function openCheckout(pkg: CheckoutPkg) {
     trackAdvertiseCtaClick();
     setCheckoutPkg(pkg);
     setError("");
     setLoading(false);
+  }
+
+  function openLandmarkContact() {
+    trackAdvertiseCtaClick();
+    setLandmarkOpen(true);
+    setCError("");
+    setCSuccess(false);
+    setCLoading(false);
+  }
+
+  function closeLandmarkContact() {
+    if (cLoading) return;
+    setLandmarkOpen(false);
+  }
+
+  const cEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cEmail.trim());
+  const canSubmitContact =
+    cName.trim().length > 0 &&
+    cEmailValid &&
+    cCompany.trim().length > 0 &&
+    cWebsite.trim().length > 0 &&
+    cMessage.trim().length > 0 &&
+    !cLoading;
+
+  async function handleLandmarkContact() {
+    if (!canSubmitContact) return;
+    setCLoading(true);
+    setCError("");
+
+    try {
+      const res = await fetch("/api/advertise/landmark-contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: cName.trim(),
+          email: cEmail.trim(),
+          company: cCompany.trim(),
+          website: cWebsite.trim(),
+          message: cMessage.trim(),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCError(data.error || "Something went wrong. Try again.");
+        setCLoading(false);
+        return;
+      }
+
+      setCSuccess(true);
+      setCLoading(false);
+    } catch {
+      setCError("Network error. Please try again.");
+      setCLoading(false);
+    }
   }
 
   const textLength = text.length;
@@ -132,9 +198,8 @@ export default function AdvertiseLanding() {
 
   function getPriceLabel(pkg: string): string {
     const prices: Record<string, Record<Currency, string>> = {
-      foundation: { usd: "$47", brl: "R$297" },
-      skyline: { usd: "$77", brl: "R$497" },
-      landmark: { usd: "$127", brl: "R$797" },
+      foundation: { usd: "$97", brl: "R$497" },
+      skyline: { usd: "$197", brl: "R$997" },
     };
     return prices[pkg]?.[currency] ?? "";
   }
@@ -289,7 +354,7 @@ export default function AdvertiseLanding() {
         <div className="grid gap-4 sm:gap-5 lg:grid-cols-3">
           <PackageCard
             name="Foundation"
-            price={currency === "usd" ? "$47" : "R$297"}
+            price={currency === "usd" ? "$97" : "R$497"}
             period="/mo"
             cta="Go Foundation"
             features={[
@@ -301,7 +366,7 @@ export default function AdvertiseLanding() {
           />
           <PackageCard
             name="Skyline"
-            price={currency === "usd" ? "$77" : "R$497"}
+            price={currency === "usd" ? "$197" : "R$997"}
             period="/mo"
             cta="Go Skyline"
             features={[
@@ -315,16 +380,17 @@ export default function AdvertiseLanding() {
           />
           <PackageCard
             name="Landmark"
-            price={currency === "usd" ? "$127" : "R$797"}
-            period="/mo"
+            price="Custom"
+            period=""
             featured
             cta="Go Landmark"
             features={[
               "Everything in Skyline",
               "Custom 3D building with your brand",
               "Launch post to 7K+ followers on Instagram & X",
+              "Custom pricing — contact for a quote",
             ]}
-            onSelect={() => openCheckout("landmark")}
+            onSelect={openLandmarkContact}
           />
         </div>
       </section>
@@ -657,6 +723,187 @@ export default function AdvertiseLanding() {
                 Monthly subscription, cancel anytime. Secure checkout via Stripe.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Landmark Contact Modal ── */}
+      {landmarkOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeLandmarkContact();
+          }}
+        >
+          <div className="max-h-full w-full max-w-md overflow-y-auto border-[3px] border-border bg-bg p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base text-cream sm:text-lg">
+                Landmark{" "}
+                <span className="text-sm text-muted">— get a quote</span>
+              </h3>
+              <button
+                onClick={closeLandmarkContact}
+                className="text-sm text-muted transition-colors hover:text-cream"
+              >
+                &times;
+              </button>
+            </div>
+
+            {cSuccess ? (
+              <div className="mt-6 text-center">
+                <p
+                  className="text-base sm:text-lg"
+                  style={{ color: ACCENT }}
+                >
+                  Got it.
+                </p>
+                <p className="mt-3 text-xs leading-relaxed text-muted normal-case">
+                  Samuel will reply to{" "}
+                  <span className="text-cream">{cEmail}</span> with pricing and
+                  next steps for your custom 3D building.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLandmarkOpen(false);
+                    setCName("");
+                    setCEmail("");
+                    setCCompany("");
+                    setCWebsite("");
+                    setCMessage("");
+                    setCSuccess(false);
+                  }}
+                  className="btn-press mt-6 w-full py-3.5 text-sm text-bg"
+                  style={{
+                    backgroundColor: ACCENT,
+                    boxShadow: "4px 4px 0 0 #5a7a00",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="mt-3 text-[10px] text-dim normal-case">
+                  Tell me a bit about your brand. I&apos;ll reply with pricing
+                  and a build plan.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="text-[10px] text-muted normal-case">
+                      Your name
+                    </label>
+                    <input
+                      type="text"
+                      value={cName}
+                      onChange={(e) => setCName(e.target.value)}
+                      maxLength={100}
+                      placeholder="Jane Doe"
+                      className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream outline-none transition-colors focus:border-lime"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted normal-case">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={cEmail}
+                      onChange={(e) => setCEmail(e.target.value)}
+                      maxLength={200}
+                      placeholder="you@company.com"
+                      className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream outline-none transition-colors focus:border-lime"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted normal-case">
+                      Company
+                    </label>
+                    <input
+                      type="text"
+                      value={cCompany}
+                      onChange={(e) => setCCompany(e.target.value)}
+                      maxLength={200}
+                      placeholder="Acme Inc."
+                      className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream outline-none transition-colors focus:border-lime"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted normal-case">
+                      Website
+                    </label>
+                    <input
+                      type="url"
+                      value={cWebsite}
+                      onChange={(e) => setCWebsite(e.target.value)}
+                      maxLength={300}
+                      placeholder="https://yoursite.com"
+                      className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream outline-none transition-colors focus:border-lime"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-baseline justify-between">
+                      <label className="text-[10px] text-muted normal-case">
+                        What do you have in mind?
+                      </label>
+                      <span className="text-[9px] text-muted normal-case">
+                        {cMessage.length}/2000
+                      </span>
+                    </div>
+                    <textarea
+                      value={cMessage}
+                      onChange={(e) => setCMessage(e.target.value)}
+                      maxLength={2000}
+                      rows={4}
+                      placeholder="Brand colors, style references, goals, timing, budget range..."
+                      className="mt-1 w-full border-[3px] border-border bg-transparent px-3 py-2 font-pixel text-xs text-cream normal-case outline-none transition-colors focus:border-lime"
+                    />
+                  </div>
+
+                  {cError && (
+                    <div
+                      className="border-[3px] px-4 py-3 text-center text-xs normal-case"
+                      style={{
+                        borderColor: "#ff6b6b",
+                        color: "#ff6b6b",
+                        backgroundColor: "#ff6b6b10",
+                      }}
+                    >
+                      {cError}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleLandmarkContact}
+                    disabled={!canSubmitContact}
+                    className="btn-press w-full py-3.5 text-sm text-bg transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{
+                      backgroundColor: ACCENT,
+                      boxShadow: "4px 4px 0 0 #5a7a00",
+                    }}
+                  >
+                    {cLoading ? "Sending..." : "Send inquiry"}
+                  </button>
+                  <p className="text-center text-[9px] text-muted normal-case">
+                    Or email{" "}
+                    <a
+                      href="mailto:samuel@thegitcity.com"
+                      className="hover:text-cream"
+                      style={{ color: ACCENT }}
+                    >
+                      samuel@thegitcity.com
+                    </a>{" "}
+                    directly.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -13,15 +13,15 @@ export const AD_PACKAGES = {
   foundation: {
     label: "Foundation",
     vehicles: ["rooftop_sign", "rooftop_sign"] as AdVehicle[],
-    monthly_usd_cents: 4700,
-    monthly_brl_cents: 29700,
+    monthly_usd_cents: 9700,
+    monthly_brl_cents: 49700,
     landmark: false,
   },
   skyline: {
     label: "Skyline",
     vehicles: ["rooftop_sign", "rooftop_sign", "blimp", "led_wrap", "plane"] as AdVehicle[],
-    monthly_usd_cents: 7700,
-    monthly_brl_cents: 49700,
+    monthly_usd_cents: 19700,
+    monthly_brl_cents: 99700,
     landmark: false,
   },
   landmark: {

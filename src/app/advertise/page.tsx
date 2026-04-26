@@ -6,11 +6,11 @@ import AdvertiseLanding from "./AdvertiseLanding";
 export const metadata: Metadata = {
   title: "Advertise in Git City — 3D Ads for Developers",
   description:
-    "Planes, blimps, and rooftop signs inside a 3D city with 172K+ developers. 1%+ CTR, 3x the industry average. From $47/mo.",
+    "Planes, blimps, and rooftop signs inside a 3D city with 172K+ developers. 1%+ CTR, 3x the industry average. From $97/mo.",
   openGraph: {
     title: "Advertise in Git City — 3D Ads for Developers",
     description:
-      "Planes, blimps, and rooftop signs inside a 3D city with 172K+ developers. 1%+ CTR, 3x the industry average. From $47/mo.",
+      "Planes, blimps, and rooftop signs inside a 3D city with 172K+ developers. 1%+ CTR, 3x the industry average. From $97/mo.",
     siteName: "Git City",
     type: "website",
     locale: "en_US",

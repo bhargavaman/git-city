@@ -11,14 +11,14 @@ const MW = 100, MD = 56, MH = 155;   // Mid (hosts the [ O ] logo)
 const TW = 72,  TD = 45, TH = 95;    // Top
 
 // ─── Front/back logo bitmap (11 × 7) ────────────────────
-// "[ O ]" — left bracket (cols 0-1), spacer, O (cols 3-7), spacer, right bracket (cols 9-10).
+// "[ • ]" — left bracket (cols 0-1), single solid dot at col 5, right bracket (cols 9-10).
 const LOGO_BM: number[][] = [
   [1,1,0,0,0,0,0,0,0,1,1],
-  [1,0,0,0,1,1,1,0,0,0,1],
-  [1,0,0,1,1,1,1,1,0,0,1],
-  [1,0,0,1,1,0,1,1,0,0,1],
-  [1,0,0,1,1,1,1,1,0,0,1],
-  [1,0,0,0,1,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,1,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,1],
   [1,1,0,0,0,0,0,0,0,1,1],
 ];
 const LOGO_FRAMES: number[][][] = [LOGO_BM, LOGO_BM, LOGO_BM, LOGO_BM];
@@ -27,13 +27,13 @@ const LOGO_H = LOGO_BM.length;
 const MAIN_COLS = LOGO_W + 2;   // 13
 const MAIN_ROWS = LOGO_H + 11;  // 18 — leaves room for windows above/below
 
-// ─── Side logo bitmap (5 × 5 ring "O") ──────────────────
+// ─── Side logo bitmap (single solid dot, 5 × 5 frame) ───
 const SIDE_LOGO_BM: number[][] = [
-  [0,1,1,1,0],
-  [1,1,1,1,1],
-  [1,1,0,1,1],
-  [1,1,1,1,1],
-  [0,1,1,1,0],
+  [0,0,0,0,0],
+  [0,0,0,0,0],
+  [0,0,1,0,0],
+  [0,0,0,0,0],
+  [0,0,0,0,0],
 ];
 const SIDE_FRAMES: number[][][] = [SIDE_LOGO_BM, SIDE_LOGO_BM, SIDE_LOGO_BM, SIDE_LOGO_BM];
 const SIDE_LOGO_W = SIDE_LOGO_BM[0].length;
@@ -129,22 +129,28 @@ function createGlassTex(
 // Each bracket is a 3-col × 7-row sculpture orbiting around a central sphere.
 
 const BRACKET_LEFT_BM: number[][] = [
-  [1,1,1],
-  [1,0,0],
-  [1,0,0],
-  [1,0,0],
-  [1,0,0],
-  [1,0,0],
-  [1,1,1],
+  [1,1,1,1],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,0,0],
+  [1,1,1,1],
 ];
 const BRACKET_RIGHT_BM: number[][] = [
-  [1,1,1],
-  [0,0,1],
-  [0,0,1],
-  [0,0,1],
-  [0,0,1],
-  [0,0,1],
-  [1,1,1],
+  [1,1,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [0,0,1,1],
+  [1,1,1,1],
 ];
 
 interface VoxelBracket {
@@ -159,7 +165,7 @@ function createVoxelBracket(bm: number[][], color: string, accent: string): Voxe
     roughness: 0.3, metalness: 0.4,
   });
 
-  const CUBE = 2.2;
+  const CUBE = 3.4;
   const geo = new THREE.BoxGeometry(CUBE, CUBE, CUBE);
   const cols = bm[0].length;
   const rows = bm.length;
@@ -489,25 +495,25 @@ export default function UltraContextBuilding({
       </mesh>
 
       {/* ── Antenna crown: orbiting brackets around central beacon ── */}
-      <group position={[0, antennaY + 36, 0]}>
-        {/* Central beacon sphere ("O") */}
+      <group position={[0, antennaY + 38, 0]}>
+        {/* Central beacon sphere ("•") — small, single dot */}
         <mesh ref={beaconRef}>
-          <sphereGeometry args={[5, 12, 12]} />
+          <sphereGeometry args={[3, 12, 12]} />
           <meshStandardMaterial
             color="#ffffff"
             emissive="#ffffff"
-            emissiveIntensity={2.5}
+            emissiveIntensity={2.8}
             toneMapped={false}
           />
         </mesh>
-        <pointLight color="#ffffff" intensity={50} distance={140} decay={2} />
+        <pointLight color="#ffffff" intensity={60} distance={150} decay={2} />
 
         {/* Orbiting brackets — voxel groups offset to either side, parent rotates around Y */}
         <group ref={orbitRef}>
-          <group position={[14, 0, 0]} scale={1.0}>
+          <group position={[26, 0, 0]}>
             <primitive object={bracketRight.group} />
           </group>
-          <group position={[-14, 0, 0]} scale={1.0}>
+          <group position={[-26, 0, 0]}>
             <primitive object={bracketLeft.group} />
           </group>
         </group>

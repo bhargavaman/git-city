@@ -10,6 +10,7 @@ export const CUSTOM_COMPONENT_NAMES = [
   "firecrawl",
   "guaracloud",
   "solana-hackathon",
+  "ultracontext",
 ] as const;
 
 export type CustomComponentName = (typeof CUSTOM_COMPONENT_NAMES)[number];

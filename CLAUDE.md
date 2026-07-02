@@ -50,7 +50,7 @@ supabase/
 
 ## Git
 
-- Squash and merge for PRs
+- Preserve full commit history on merge — NEVER squash PRs (use a merge commit or rebase, keep every commit)
 - Commit message format (ALWAYS follow):
   - emoji + conventional commit: `✨ feat(scope): ...`, `🐛 fix(scope): ...`, `✏️ docs: ...`, `♻️ refactor: ...`
   - single line only — no body, no bullet points

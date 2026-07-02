@@ -51,7 +51,11 @@ supabase/
 ## Git
 
 - Squash and merge for PRs
-- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`
+- Commit message format (ALWAYS follow):
+  - emoji + conventional commit: `✨ feat(scope): ...`, `🐛 fix(scope): ...`, `✏️ docs: ...`, `♻️ refactor: ...`
+  - single line only — no body, no bullet points
+  - all lowercase, written in english
+  - split work into separate commits by logical part / group of changes (never one giant commit)
 - Never skip hooks or force push to main
 
 ## Third-party Assets (IMPORTANT)

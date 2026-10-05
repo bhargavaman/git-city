@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ACTIVITIES,
   ACTIVITY_COPY,
+  BONUS_MAX_PCT,
   CAPS,
   FEATURED_ROTATION,
+  POINTS,
   PRACTICE_START,
   PRIZE_CREDITS,
   PRIZE_SPONSOR,
@@ -124,5 +128,60 @@ describe("sponsor", () => {
   it("keeps the prize as a number that copy formats", () => {
     expect(PRIZE_CREDITS).toBe(10_000);
     expect(PRIZE_CREDITS.toLocaleString("en-US")).toBe("10,000");
+  });
+});
+
+// vitest runs from the repo root (vitest.config.ts lives there).
+const MIGRATION_167 = resolve(process.cwd(), "supabase/migrations/167_town_play.sql");
+
+function migration167(): string {
+  return readFileSync(MIGRATION_167, "utf8");
+}
+
+function all(sql: string, re: RegExp): number[][] {
+  return [...sql.matchAll(re)].map((m) => m.slice(1).map(Number));
+}
+
+describe("migration 167 caps", () => {
+  it("caps floors at CAPS.floors everywhere, one point per floor", () => {
+    const sql = migration167();
+    const found = [
+      /CHECK \(floors BETWEEN 0 AND (\d+)\)/g,
+      /GREATEST\(floor\(\(e->>'n'\)::numeric\), 0\), (\d+)\)/g,
+      /CASE WHEN v_n >= (\d+) THEN now\(\) END/g,
+      /LEAST\(d\.floors \+ EXCLUDED\.floors, (\d+)\)/g,
+      /d\.floors \+ EXCLUDED\.floors >= (\d+)/g,
+      /LEAST\(t\.floors, (\d+)\) AS floors/g,
+    ].map((re) => all(sql, re));
+    for (const hits of found) expect(hits).toEqual([[CAPS.floors]]);
+    // play_day_points returns the floor count as points.
+    expect(POINTS.floors).toBe(1);
+  });
+
+  it("caps raid wins", () => {
+    expect(all(migration167(), /LEAST\((\d+)\*count\(\*\) FILTER \(WHERE success\), (\d+)\)/g)).toEqual([
+      [POINTS.raids, CAPS.raids],
+    ]);
+  });
+
+  it("caps town visits", () => {
+    expect(all(migration167(), /LEAST\((\d+)\*count\(\*\), (\d+)\)\s+FROM public\.town_visits/g)).toEqual([
+      [POINTS.visits, CAPS.visits],
+    ]);
+  });
+
+  it("caps kudos", () => {
+    expect(all(migration167(), /LEAST\((\d+)\*count\(\*\), (\d+)\)\s+FROM public\.developer_kudos/g)).toEqual([
+      [POINTS.kudos, CAPS.kudos],
+    ]);
+  });
+
+  it("scores a coding day once", () => {
+    expect(all(migration167(), /0, 0, 0, 0, (\d+)\s+FROM public\.league_weekly_stats/g)).toEqual([[CAPS.code]]);
+    expect(POINTS.code).toBe(CAPS.code);
+  });
+
+  it("caps the smaller-side bonus", () => {
+    expect(all(migration167(), /CHECK \(bonus_pct BETWEEN 0 AND (\d+)\)/g)).toEqual([[BONUS_MAX_PCT]]);
   });
 });

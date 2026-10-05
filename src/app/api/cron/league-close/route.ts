@@ -5,6 +5,8 @@ import { sendLeagueWeeklyResults } from "@/lib/notification-senders/league-weekl
 import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
 import { BATTLE_START, isRivalry } from "@/lib/towns/rivalry";
 import { sendBattleResults, sendBattleStart } from "@/lib/notification-senders/towns-battle";
+import { closePlayWeek } from "@/lib/towns/play";
+import { PRACTICE_START } from "@/lib/towns/play-rules";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,6 +32,25 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Play points first, in their own try: a failed race close can't lose
+    // the play week, and a failed play close can't stop the races.
+    let play: { written: boolean; week_start: string } | { skipped: string } | { error: string };
+    if (start.getTime() < PRACTICE_START) {
+      play = { skipped: "before the practice week" };
+    } else {
+      try {
+        const r = await closePlayWeek(start);
+        play = { written: r.written, week_start: r.row.week_start };
+      } catch (err) {
+        console.error("[league-close] play:", err);
+        play = { error: String(err) };
+      }
+    }
+    // Staging check that a failed race close still leaves the play row. Ignored on prod.
+    if (process.env.VERCEL_ENV !== "production" && request.nextUrl.searchParams.get("failClose") === "1") {
+      throw new Error("failClose: staging test");
+    }
+
     const { closed, errors, ranked } = await closeWeek(start);
 
     // Visits rollup and Town of the week, before the emails so they can name
@@ -72,6 +93,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      play,
       towns,
       week_start: start.toISOString().slice(0, 10),
       closed: closed.length,

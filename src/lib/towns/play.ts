@@ -1,11 +1,13 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { isoDay } from "@/lib/leagues/scoring";
+import { isoDay, weekDays, weekEnd, weekStart } from "@/lib/leagues/scoring";
 import { BATTLE_START } from "./rivalry";
-import { CHECK_TOP, REFETCH_TOP, featuredFor } from "./play-rules";
-import { buildWar, countedIds, nextBonus, rankPlayers, sideSizes, type PlayWeekRow } from "./play-score";
+import { CHECK_TOP, REFETCH_TOP, featuredFor, playPhase, type FeaturedActivity, type PlayPhase } from "./play-rules";
+import { buildWar, countedIds, nextBonus, rankPlayers, sideSizes, type PlayEntry, type PlayWeekRow, type SideBonus } from "./play-score";
 import { getPlayWeekRow, loadCategories, loadPlayDays, loadPlayPlayers, refetchForClose } from "./play-load";
 import { lastDay, refetchTargets, shiftWeek, weekTotals } from "./play-close-rules";
+import { boardWeek, type LastWinners } from "./play-board";
 
 /**
  * Freezes one play week into town_play_weeks: standings (every player with
@@ -78,4 +80,47 @@ export async function closePlayWeek(
   const row = await getPlayWeekRow(day);
   if (!row) throw new Error(`town_play_weeks ${day} missing after insert`);
   return { written: (inserted ?? []).length > 0, row };
+}
+
+export interface PlayBoard {
+  /** `end` is the exclusive next Monday, as in BattleState. */
+  week: { start: string; end: string };
+  phase: PlayPhase;
+  featured: FeaturedActivity | null;
+  /** This week's smaller-side bonus, prize weeks only. */
+  bonus: SideBonus | null;
+  /** Every active town member, in prize tie-break order (`prize` includes the bonus). */
+  entries: PlayEntry[];
+  lastWinners: LastWinners | null;
+}
+
+async function loadBoard(startDay: string): Promise<PlayBoard> {
+  const start = new Date(`${startDay}T00:00:00Z`);
+  const prev = new Date(start);
+  prev.setUTCDate(prev.getUTCDate() - 7);
+  const [players, rows, ended] = await Promise.all([
+    loadPlayPlayers(startDay),
+    loadPlayDays(startDay, weekDays(start)[6]),
+    // The week that just ended set this week's bonus (next_bonus) and holds its winners.
+    getPlayWeekRow(isoDay(prev)),
+  ]);
+  const phase = playPhase(start.getTime());
+  const featured = featuredFor(startDay);
+  const { bonus, lastWinners } = boardWeek(ended, phase);
+  return {
+    week: { start: startDay, end: isoDay(weekEnd(start)) },
+    phase,
+    featured,
+    bonus,
+    entries: rankPlayers(players, rows, { weekStart: startDay, featured, bonus }),
+    lastWinners,
+  };
+}
+
+// Points move with every smash, raid and hourly stats run; 5 minutes is fresh enough (as towns-battle-v2).
+const cachedBoard = unstable_cache(loadBoard, ["towns-play-board-v1"], { revalidate: 300 });
+
+/** This week's play standings for /towns, keyed by the week's Monday. */
+export async function getPlayBoard(now: Date = new Date()): Promise<PlayBoard> {
+  return cachedBoard(isoDay(weekStart(now)));
 }

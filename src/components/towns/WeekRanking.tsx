@@ -8,7 +8,7 @@ import { townDisplayName } from "@/lib/towns/names";
 export default function WeekRanking({ towns }: { towns: RankedTown[] }) {
   return (
     <section id="this-week" className="mt-10 scroll-mt-6">
-      <h2 className="text-xl text-cream sm:text-2xl">This week</h2>
+      <h2 className="text-xl text-cream sm:text-2xl">Monument: code</h2>
       <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted normal-case">
         The town that codes the most this week gets the monument in the center of Git City. Score: average GitHub contributions of
         members who coded, max {DAILY_CONTRIBUTION_CAP}/day, {TOWN_MIN_CODERS}+ coding to rank.

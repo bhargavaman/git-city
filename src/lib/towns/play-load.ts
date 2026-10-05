@@ -123,13 +123,15 @@ export async function loadPlayPlayers(weekStart: string): Promise<PlayPlayer[]> 
 /** Capped points per player per UTC day, `from`..`to` inclusive (no 2× here). */
 export async function loadPlayDays(from: string, to: string): Promise<PlayDayRow[]> {
   const sb = getSupabaseAdmin();
-  return pages<PlayDayRow>((a, b) =>
-    sb
-      .rpc("play_day_points", { p_from: from, p_to: to })
-      .order("developer_id")
-      .order("day")
-      .range(a, b)
-      .returns<PlayDayRow[]>(),
+  // The untyped client reads a set-returning RPC as one object; its rows are PlayDayRow.
+  type Page = PromiseLike<{ data: PlayDayRow[] | null; error: { message: string } | null }>;
+  return pages<PlayDayRow>(
+    (a, b) =>
+      sb
+        .rpc("play_day_points", { p_from: from, p_to: to })
+        .order("developer_id")
+        .order("day")
+        .range(a, b) as unknown as Page,
   );
 }
 

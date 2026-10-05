@@ -17,6 +17,7 @@ import {
   toFootprint,
   type SmashMsg,
 } from "../src/lib/league-city/smash-net";
+import { FloorTally } from "../src/lib/league-city/smash-floors";
 
 // ─── Smash (drive room side) ────────────────────────────────
 // The authority on a town's floors. Loads the town's buildings and saved
@@ -27,10 +28,16 @@ import {
 // back (time, contributions, the owner parked against it) and sends each
 // change to everyone. Saves go back to the site signed with the shared
 // FORCE_PUSH_HMAC_SECRET every SAVE_MS, and at once when a building falls.
+// Floors knocked off buildings outside the driver's own town ride in the same
+// signed save as one batch (smash-floors.ts), for Towns play points.
 
 export interface SmashDriver {
   login: string | null;
   canSmash: boolean;
+  /** A member of this town (from /smash/me): their floors here score nothing. */
+  home: boolean;
+  /** Device hash from the connection (seenHash), for the review flags. */
+  seen: string | null;
   /** Its auth is being checked with the site. */
   authing: boolean;
   /** Last floor taken per building column by this car (cooldown). */
@@ -61,6 +68,10 @@ export class SmashRoom {
   /** Floors per minute, per account: more tabs don't make a faster wrecking ball. */
   private budgets = new Map<string, FloorBudget>();
   private blasts = new Map<number, Blast>();
+  /** Floors that score (outside the driver's own town), saved with the damage. */
+  private tally = new FloorTally();
+  /** Device hashes that arrived before the driver's hello. */
+  private early = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private lastSave = 0;
   private lastContrib = 0;
@@ -126,10 +137,12 @@ export class SmashRoom {
   }
 
   join(id: string) {
-    this.drivers.set(id, { login: null, canSmash: false, authing: false, lastCol: new Map() });
+    this.drivers.set(id, { login: null, canSmash: false, home: false, seen: this.early.get(id) ?? null, authing: false, lastCol: new Map() });
+    this.early.delete(id);
   }
 
   leave(id: string) {
+    this.early.delete(id);
     const login = this.drivers.get(id)?.login;
     this.drivers.delete(id);
     // The budget stays while the account has another car here (a reconnect can't reset it).
@@ -152,6 +165,7 @@ export class SmashRoom {
       const me = (await res.json()) as { login: string; devId: number; canSmash: boolean; home: boolean };
       d.login = me.login.toLowerCase();
       d.canSmash = me.canSmash === true && Number.isSafeInteger(me.devId) && me.devId > 0;
+      d.home = me.home === true;
       if (d.canSmash) this.ids.set(d.login, me.devId);
       conn.send(JSON.stringify({ t: "smash_me", can: d.canSmash, home: me.home === true, login: d.login } satisfies ServerMsg));
     } catch (err) {
@@ -159,6 +173,20 @@ export class SmashRoom {
     } finally {
       d.authing = false;
     }
+  }
+
+  /** The drive room saw this car move faster than a car can drive (a review flag). */
+  jumped(id: string, now: number) {
+    const d = this.drivers.get(id);
+    const dev = d?.login ? this.ids.get(d.login) : undefined;
+    if (d?.login && dev !== undefined && !d.home) this.tally.jump(d.login, dev, now);
+  }
+
+  /** The connection's device hash; kept until hello if the driver isn't in yet. */
+  see(id: string, hash: string) {
+    const d = this.drivers.get(id);
+    if (d) d.seen = hash;
+    else this.early.set(id, hash);
   }
 
   /** A blast was fired (the battle's `use`): it may break floors for a few seconds. */
@@ -202,8 +230,13 @@ export class SmashRoom {
     const allowed = Math.floor(budget.take(columns.length * n, now) / n);
     columns = columns.slice(0, allowed);
     if (columns.length === 0) return;
-    const { down } = store.hitColumns(target, columns, n, now, d.login);
+    const { took, down } = store.hitColumns(target, columns, n, now, d.login);
     const attackerId = this.ids.get(d.login);
+    // Play points: floors off a building outside your own town (shielded ones give took = 0).
+    if (took > 0 && !d.home && attackerId !== undefined) {
+      this.tally.add(d.login, attackerId, m.b, took, now);
+      if (d.seen) this.tally.see(d.login, attackerId, d.seen, now);
+    }
     if (down && attackerId !== undefined) {
       this.fallen.push({ victim: m.b, attacker: d.login, attackerId, at: now });
       this.lastSave = 0; // save (and email) now
@@ -244,11 +277,11 @@ export class SmashRoom {
         this.lastContrib = now;
         void this.refreshContrib();
       }
-      if (now - this.lastSave >= SAVE_MS && (this.dirty.size > 0 || this.fallen.length > 0)) {
+      if (now - this.lastSave >= SAVE_MS && (this.dirty.size > 0 || this.fallen.length > 0 || this.tally.hasWork())) {
         this.lastSave = now;
         void this.save();
       }
-      if (this.room.getConnections && [...this.room.getConnections()].length === 0 && this.dirty.size === 0) {
+      if (this.room.getConnections && [...this.room.getConnections()].length === 0 && this.dirty.size === 0 && !this.tally.hasWork()) {
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
       }
@@ -305,7 +338,9 @@ export class SmashRoom {
         },
       ];
     });
-    const body = JSON.stringify({ at: Date.now(), rows, demolished: fallen });
+    // Floors go as one frozen batch, resent unchanged until the site answers 200.
+    const pending = this.tally.take(() => crypto.randomUUID());
+    const body = JSON.stringify({ at: Date.now(), rows, demolished: fallen, ...(pending ? { floors: pending.entries, floorsBatch: pending.batch } : {}) });
     try {
       const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash`, {
         method: "POST",
@@ -313,6 +348,7 @@ export class SmashRoom {
         body,
       });
       if (!res.ok) throw new Error(`smash save ${res.status}`);
+      if (pending) this.tally.done(pending.batch);
     } catch (err) {
       console.error("[smash] save", err);
       for (const l of logins) this.dirty.add(l);

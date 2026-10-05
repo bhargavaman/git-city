@@ -37,6 +37,7 @@ import {
 } from "../src/lib/league-city/drive/crown";
 import { EMOTE_MIN_MS, validEmote } from "../src/lib/league-city/drive/emotes";
 import { parseSmash } from "../src/lib/league-city/smash-net";
+import { impliedJump, seenHash } from "../src/lib/league-city/smash-floors";
 import { SmashRoom } from "./smash";
 import { LIVE_SECRET_HEADER, createReporter, type TownLive } from "../src/lib/towns/live";
 
@@ -75,6 +76,8 @@ interface Driver {
   lastTake: number;
   lastUse: number;
   lastEmote: number;
+  /** Last position (m) and when, for the jump flag. */
+  pos: { x: number; z: number; at: number } | null;
 }
 
 interface Box {
@@ -170,11 +173,23 @@ export default class DriveServer implements Party.Server {
   }
 
   onConnect(conn: Connection, ctx: ConnectionContext) {
+    const watch = new URL(ctx.request.url).searchParams.get("watch") === "1";
     if (this.smash.enabled) {
       void this.smash.greet(conn);
       this.smash.wake();
+      // A device hash for the review flags; never the raw ip or user-agent.
+      const secret = this.room.env.FORCE_PUSH_HMAC_SECRET as string | undefined;
+      if (!watch && secret) {
+        const ip = ctx.request.headers.get("cf-connecting-ip") ?? "";
+        const ua = ctx.request.headers.get("user-agent") ?? "";
+        void seenHash(secret, ip, ua)
+          .then((h) => {
+            if (this.room.getConnection(conn.id)) this.smash.see(conn.id, h);
+          })
+          .catch(() => {});
+      }
     }
-    if (new URL(ctx.request.url).searchParams.get("watch") === "1") {
+    if (watch) {
       this.watchers.add(conn.id);
       this.runWatchClock();
       this.countChanged();
@@ -218,6 +233,9 @@ export default class DriveServer implements Party.Server {
       if (!s) return;
       d.lastState = now;
       d.state = encodeState(s);
+      const pos = { x: s.x, z: s.z, at: now };
+      if (d.pos && impliedJump(d.pos, pos)) this.smash.jumped(sender.id, now);
+      d.pos = pos;
       this.room.broadcast(JSON.stringify(["s", sender.id, ...d.state]), [sender.id, ...this.watchers]);
       return;
     }
@@ -332,7 +350,7 @@ export default class DriveServer implements Party.Server {
       sender.send(JSON.stringify({ t: "full" } satisfies ServerMsg));
       return;
     }
-    this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0, lastEmote: 0 });
+    this.drivers.set(sender.id, { name, state: null, lastState: 0, lastBump: 0, held: null, lastTake: 0, lastUse: 0, lastEmote: 0, pos: null });
     this.smash.join(sender.id);
     this.countChanged();
     this.room.broadcast(JSON.stringify({ t: "join", id: sender.id, name } satisfies ServerMsg), [sender.id]);

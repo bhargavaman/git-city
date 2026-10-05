@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { weekStart } from "@/lib/leagues/scoring";
+import { isoDay, weekStart } from "@/lib/leagues/scoring";
 import { closeWeek } from "@/lib/leagues/close";
 import { sendLeagueWeeklyResults } from "@/lib/notification-senders/league-weekly";
 import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
@@ -65,14 +65,17 @@ export async function GET(request: NextRequest) {
     const townOfWeek = "featured" in towns ? towns.featured : null;
 
     // Results emails (awaited). From the first battle week on, the two
-    // rivalry towns get the battle's result instead of their town race.
+    // rivalry towns get the battle's result, read from the frozen play week,
+    // instead of their town race. If play failed, no battle email (logged).
     let emailed = 0;
     const battleWeek = start.getTime() >= BATTLE_START;
     const rivalry = battleWeek ? closed.filter((c) => isRivalry(c.league.slug)) : [];
-    try {
-      emailed += await sendBattleResults(rivalry);
-    } catch (err) {
-      console.error("[league-close] battle result emails:", err);
+    if (battleWeek) {
+      try {
+        emailed += await sendBattleResults(isoDay(start));
+      } catch (err) {
+        console.error("[league-close] battle result emails:", err);
+      }
     }
     // The week opening now is the first battle week: tell both sides.
     if (start.getTime() + 7 * 86_400_000 === BATTLE_START) {

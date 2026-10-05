@@ -37,7 +37,7 @@ const BATTLE: BattleResultEmailData = {
   claude: 84,
   codex: 61,
   side: "codex",
-  mine: 42,
+  mine: 412,
   heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?sample=1`,
 };
 

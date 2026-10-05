@@ -56,7 +56,7 @@ function frame(children: React.ReactNode) {
   );
 }
 
-/** The result: each side's logo and name over its per dev, and the tug bar. */
+/** The result: each side's logo and name over its score per player, and the tug bar. */
 function scoreboard(d: Extract<TownsBattleImage, { kind: "result" }>) {
   const [a, b] = [d.claude, d.codex];
   const share = a !== null && b !== null && a + b > 0 ? a / (a + b) : 0.5;
@@ -83,7 +83,7 @@ function scoreboard(d: Extract<TownsBattleImage, { kind: "result" }>) {
         <div style={{ display: "flex", flexGrow: 1, height: 20, backgroundColor: B.color }} />
       </div>
       <span style={{ marginTop: 24, fontSize: 36, color: OG.cream }}>
-        {d.winner ? `${nameOf(d.winner)} WON · PER DEV` : "A TIE · PER DEV"}
+        {d.winner ? `${nameOf(d.winner)} WON · PER PLAYER` : "A TIE · PER PLAYER"}
       </span>
     </div>,
   );

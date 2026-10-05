@@ -3,18 +3,17 @@ import { sendNotification, type NotificationPayload } from "../notifications";
 import { mapWithConcurrency } from "../concurrency";
 import { EMAIL_BASE_URL, button, heroImage, paragraph, textLink, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
-import { RIVALRY } from "../towns/rivalry";
+import { BATTLE_START, RIVALRY } from "../towns/rivalry";
+import { getPlayWeekRow } from "../towns/play-load";
 import { SIDES, battleWeekNumber, type Side } from "../towns/battle-rules";
-import { getWeekResult } from "../towns/battle";
 import { RULES_PATH } from "../towns/play-rules";
-import type { ClosedLeague } from "../leagues/close";
-import { contributions } from "./town-email";
 
 // Claude vs Codex emails, both from the Monday close: "The battle is on" the
 // Monday the first battle week opens, then each Monday the week's result for
 // every member of either side. Hero, one line, one button.
 
 const nameOf = (s: Side) => RIVALRY[SIDES.indexOf(s)].name;
+const points = (n: number) => `${n.toLocaleString("en-US")} point${n === 1 ? "" : "s"}`;
 
 /** Hundreds of members share the Monday close's 300s: send 8 at a time (sendEmail throttles for Resend). */
 async function sendAll(payloads: NotificationPayload[]): Promise<number> {
@@ -32,7 +31,7 @@ export interface BattleStartEmailData {
 
 function startHeader(d: BattleStartEmailData) {
   // The picture already says it counts from today.
-  const line = `You're on ${nameOf(d.side)}. Code this week and bring your friends.`;
+  const line = `You're on ${nameOf(d.side)}. Everything you do in Git City scores this week.`;
   return { subject: "The battle is on", preheader: line, line };
 }
 
@@ -95,14 +94,14 @@ export interface BattleResultEmailData {
   claude: number | null;
   codex: number | null;
   side: Side;
-  /** The reader's contributions in the week (daily cap applied). */
+  /** The reader's play points in the week (caps and the 2x activity applied, no prize bonus). */
   mine: number;
   heroUrl: string;
 }
 
 function resultHeader(d: BattleResultEmailData) {
   // The picture carries the score; the line is yours.
-  const line = d.mine > 0 ? `You coded ${contributions(d.mine)} for ${nameOf(d.side)}.` : `You didn't code for ${nameOf(d.side)} that week.`;
+  const line = d.mine > 0 ? `You scored ${points(d.mine)} for ${nameOf(d.side)}.` : `You didn't score for ${nameOf(d.side)} that week.`;
   return {
     subject: d.winner ? `${nameOf(d.winner)} won week ${d.week}` : `Week ${d.week} was a tie`,
     preheader: line,
@@ -119,7 +118,7 @@ export function renderBattleResultEmail(d: BattleResultEmailData, links: EmailLi
   const html = renderLayout({
     title: subject,
     preheader,
-    hero: heroImage({ src: d.heroUrl, href: url, alt: `${subject}: Claude ${d.claude ?? "–"}, Codex ${d.codex ?? "–"} per dev` }),
+    hero: heroImage({ src: d.heroUrl, href: url, alt: `${subject}: Claude ${d.claude ?? "–"}, Codex ${d.codex ?? "–"} per player` }),
     body: [paragraph(line), button(cta, url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
@@ -133,43 +132,44 @@ export function renderBattleResultEmail(d: BattleResultEmailData, links: EmailLi
 }
 
 /**
- * The closed week's result to every member of both sides, from their town's
- * frozen standings (so a Monday switch doesn't move anyone's email). In place
- * of the town race email for the two rivalry towns.
+ * The closed war week's result to every player on either side, from the play
+ * week the Monday close froze (town_play_weeks), so a Monday switch doesn't
+ * move anyone's email. In place of the town race email for the two rivalry
+ * towns. No frozen row: no battle email, logged.
  */
-export async function sendBattleResults(rivalry: ClosedLeague[]): Promise<number> {
-  const weekStart = rivalry[0]?.week.weekStart;
-  if (!weekStart) return 0;
-  const result = await getWeekResult(weekStart);
-  if (!result) return 0;
+export async function sendBattleResults(weekStart: string): Promise<number> {
+  if (Date.parse(`${weekStart}T00:00:00Z`) < BATTLE_START) return 0;
+  const row = await getPlayWeekRow(weekStart);
+  if (!row) {
+    console.error(`[towns-battle] no play week for ${weekStart}: battle results skipped`);
+    return 0;
+  }
   const week = battleWeekNumber(weekStart);
   const payloads: NotificationPayload[] = [];
-  for (const c of rivalry) {
-    const side = SIDES[RIVALRY.findIndex((r) => r.slug === c.league.slug)];
-    for (const me of c.week.standings) {
-      const data: BattleResultEmailData = {
-        week,
-        winner: result.winner,
-        claude: result.claude?.perDev ?? null,
-        codex: result.codex?.perDev ?? null,
-        side,
-        mine: me.total,
-        heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?week=${weekStart}`,
-      };
-      const { subject, preheader } = resultHeader(data);
-      payloads.push({
-        type: "battle_result",
-        category: "leagues",
-        developerId: me.developer_id,
-        dedupKey: `battle_result:${me.developer_id}:${weekStart}`,
-        title: subject,
-        body: preheader,
-        render: (links) => renderBattleResultEmail(data, links),
-        actionUrl: `${EMAIL_BASE_URL}/towns`,
-        priority: "normal",
-        channels: ["email"],
-      });
-    }
+  for (const me of row.standings) {
+    if (!me.side) continue;
+    const data: BattleResultEmailData = {
+      week,
+      winner: row.war.winner,
+      claude: row.war.claude.score,
+      codex: row.war.codex.score,
+      side: me.side,
+      mine: me.total,
+      heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?week=${weekStart}`,
+    };
+    const { subject, preheader } = resultHeader(data);
+    payloads.push({
+      type: "battle_result",
+      category: "leagues",
+      developerId: me.developer_id,
+      dedupKey: `battle_result:${me.developer_id}:${weekStart}`,
+      title: subject,
+      body: preheader,
+      render: (links) => renderBattleResultEmail(data, links),
+      actionUrl: `${EMAIL_BASE_URL}/towns`,
+      priority: "normal",
+      channels: ["email"],
+    });
   }
   return sendAll(payloads);
 }

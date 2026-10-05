@@ -11,6 +11,7 @@ import { signInWithGitHub } from "@/lib/sign-in";
 import { Avatar, fmt } from "@/components/league/hud/shared";
 import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
 import type { BattleSide, BattleState } from "@/lib/towns/battle";
+import { battleLead, resultLine, scoreShare } from "@/lib/towns/battle-sides";
 import { SIDES } from "@/lib/towns/battle-rules";
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
@@ -36,10 +37,10 @@ export interface RivalSide {
 type Pair = [RivalSide, RivalSide];
 
 // /towns: Claude vs Codex. Before the first battle week, pick a side; from
-// it on, the week's score (per dev), the days won and the top coders; all
-// Monday, last week's final and who won it. The names are the headline; each
-// town sits in its own window with its number and button on a solid bar, so
-// no text ever sits on the sky.
+// it on, the week's score (play points per player), the days won and the top
+// players; all Monday, last week's final and who won it. The names are the
+// headline; each town sits in its own window with its number and button on a
+// solid bar, so no text ever sits on the sky.
 export default function RivalryPoster({
   sides,
   mine,
@@ -112,9 +113,10 @@ export default function RivalryPoster({
   }, [pickOnLoad]);
 
   const total = sides[0].picked + sides[1].picked;
-  const share = b ? perDevShare(b) : total === 0 ? 0.5 : sides[0].picked / total;
-  const lead = b ? battleLead(b, sides) : leadLine(sides);
-  const result = b?.showing === "result" ? resultLine(b, sides) : null;
+  const names: [string, string] = [sides[0].name, sides[1].name];
+  const share = b ? scoreShare(b) : total === 0 ? 0.5 : sides[0].picked / total;
+  const lead = b ? battleLead(b, names) : leadLine(sides);
+  const result = b?.showing === "result" ? resultLine(b.lastWeek, names) : null;
 
   return (
     <main className="min-h-screen bg-bg pb-24 font-pixel uppercase text-warm">
@@ -208,7 +210,7 @@ export default function RivalryPoster({
       </section>
 
       {players}
-      {b ? <TopCoders battle={b} sides={sides} /> : <WhoPicked sides={sides} />}
+      {b ? <TopPlayers battle={b} sides={sides} /> : <WhoPicked sides={sides} />}
       <OtherTowns towns={sortByLive(others, live)} live={live} />
     </main>
   );
@@ -224,36 +226,6 @@ function useCountdown(target: number): string | null {
     return () => clearInterval(id);
   }, [target]);
   return left;
-}
-
-function perDevShare(b: BattleState): number {
-  const [a, c] = [b.sides.claude.perDev ?? 0, b.sides.codex.perDev ?? 0];
-  return a + c === 0 ? 0.5 : a / (a + c);
-}
-
-/** "Claude leads · 84 vs 61 per dev", or who can't score yet (3 coding). */
-function battleLead(b: BattleState, sides: Pair): string {
-  const [a, c] = [b.sides.claude.perDev, b.sides.codex.perDev];
-  if (a === null && c === null) return "Nobody has 3 coding yet";
-  if (a === null) return `${sides[0].name} needs 3 coding to score`;
-  if (c === null) return `${sides[1].name} needs 3 coding to score`;
-  if (a === c) return `Dead even · ${a} per dev`;
-  const [top, low] = a > c ? [0, 1] : [1, 0];
-  const n = [a, c];
-  const verb = b.showing === "result" ? "won" : "leads";
-  return `${sides[top].name} ${verb} · ${n[top]} vs ${n[low]} per dev`;
-}
-
-/** "Claude won week 1 · 84 vs 61 per dev" */
-function resultLine(b: BattleState, sides: Pair): string | null {
-  const w = b.lastWeek;
-  if (!w) return null;
-  const score = (t: { perDev: number } | null) => (t ? String(t.perDev) : "–");
-  // The dot stays on the first line when it wraps.
-  if (w.winner === null) return `Week ${w.number} was a tie\u00a0· ${score(w.claude)} vs ${score(w.codex)} per dev`;
-  const i = SIDES.indexOf(w.winner);
-  const [hi, lo] = i === 0 ? [w.claude, w.codex] : [w.codex, w.claude];
-  return `${sides[i].name} won week ${w.number}\u00a0· ${score(hi)} vs ${score(lo)} per dev`;
 }
 
 const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -332,11 +304,11 @@ function SideCard({
       <div className="flex flex-1 flex-col justify-between gap-4 p-3 sm:flex-row sm:items-center sm:p-5">
         <div>
           <p className="text-3xl leading-none tabular-nums sm:text-5xl" style={{ color: side.color }}>
-            {score ? (score.perDev ?? "–") : fmt(side.picked)}
+            {score ? (score.score ?? "–") : fmt(side.picked)}
           </p>
           <p className="mt-2 text-xs text-muted sm:text-sm">
             {score ? (
-              `per dev · ${fmt(score.coding)} coding`
+              `per player · ${fmt(score.scorers)}\u00a0playing`
             ) : (
               <>
                 picked<span className="max-sm:hidden"> {side.name}</span>
@@ -418,10 +390,10 @@ function InviteButton({ login, color }: { login: string; color: string }) {
   );
 }
 
-function TopCoders({ battle, sides }: { battle: BattleState; sides: Pair }) {
+function TopPlayers({ battle, sides }: { battle: BattleState; sides: Pair }) {
   return (
     <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
-      <h2 className="text-lg text-cream sm:text-xl">{battle.showing === "result" ? `Top coders, week ${battle.week.number}` : "Top coders this week"}</h2>
+      <h2 className="text-lg text-cream sm:text-xl">{battle.showing === "result" ? `Top players, week ${battle.week.number}` : "Top players this week"}</h2>
       <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-6">
         {sides.map((side, s) => {
           const top = battle.sides[SIDES[s]].top;
@@ -432,7 +404,7 @@ function TopCoders({ battle, sides }: { battle: BattleState; sides: Pair }) {
                 {side.name}
               </p>
               {top.length === 0 ? (
-                <p className={`mt-3 text-xs text-muted normal-case ${right ? "text-right" : ""}`}>Nobody coded yet</p>
+                <p className={`mt-3 text-xs text-muted normal-case ${right ? "text-right" : ""}`}>Nobody scored yet</p>
               ) : (
                 <ol className="mt-3 flex flex-col gap-2">
                   {top.map((c, r) => (

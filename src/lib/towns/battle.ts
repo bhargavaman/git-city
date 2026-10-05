@@ -1,27 +1,26 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { isoDay, townDays, weekEnd, weekStart, type TownScore } from "@/lib/leagues/scoring";
-import { loadStandings } from "@/lib/leagues/standings";
+import { isoDay, weekEnd, weekStart } from "@/lib/leagues/scoring";
 import { BATTLE_START, RIVALRY } from "./rivalry";
 import { leagueAssetUrl } from "@/lib/league-city/identity";
-import { SIDES, battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, weekWinner, type Side } from "./battle-rules";
+import { SIDES, battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, type Side } from "./battle-rules";
+import { closedSide, liveSide, type BattleCoder, type SideLoad } from "./battle-sides";
+import { getPlayBoard } from "./play";
+import { getPlayWeekRow } from "./play-load";
+import type { PlayWar } from "./play-score";
 
-export interface BattleCoder {
-  login: string;
-  avatar_url: string | null;
-  /** Contributions this week (daily cap applied). */
-  total: number;
+export type { BattleCoder };
+
+export interface BattleSide extends SideLoad {
+  daysWon: number;
 }
 
-export interface BattleSide {
-  /** Null under 3 members coding. */
-  perDev: number | null;
-  coding: number;
-  /** Per dev by day, Mon..Sun. */
-  days: number[];
-  daysWon: number;
-  top: BattleCoder[];
+/** A closed war week: each side's score (per player plus team categories) and who won. */
+export interface WeekScore {
+  winner: Side | null;
+  claude: number | null;
+  codex: number | null;
 }
 
 export interface BattleState {
@@ -35,29 +34,18 @@ export interface BattleState {
   /** Who won each day, Mon..Sun ("open" = not over yet). */
   dayWinners: (Side | null | "open")[];
   sides: Record<Side, BattleSide>;
-  /** The battle week that closed last Monday. Null before the first close. */
-  lastWeek: { start: string; number: number; winner: Side | null; claude: TownScore | null; codex: TownScore | null } | null;
+  /** The war week that closed last Monday. Null before the first close. */
+  lastWeek: (WeekScore & { start: string; number: number }) | null;
   series: Record<Side, number>;
 }
 
-const TOP = 3;
-const NO_DAYS = [0, 0, 0, 0, 0, 0, 0];
-
-type SideLoad = Omit<BattleSide, "daysWon">;
+const DAY_MS = 86_400_000;
 
 interface WeekLoad {
   live: Record<Side, SideLoad>;
-  closed: { start: string; claude: TownScore | null; codex: TownScore | null }[];
+  closed: (WeekScore & { start: string })[];
   /** The last closed week as frozen by the close, for the Monday result. */
   prev: Record<Side, SideLoad> | null;
-}
-
-/** A standings entry as league_weeks freezes it (STANDINGS_VERSION 2). */
-interface FrozenEntry {
-  login: string;
-  avatar_url: string | null;
-  total: number;
-  days?: number[];
 }
 
 async function rivalryIds(): Promise<Record<Side, string | null>> {
@@ -70,72 +58,50 @@ async function rivalryIds(): Promise<Record<Side, string | null>> {
   return { claude: id(0), codex: id(1) };
 }
 
-function sideOf(town: TownScore | null, entries: FrozenEntry[], days: number[]): SideLoad {
-  return {
-    perDev: town?.perDev ?? null,
-    coding: town?.coding ?? entries.filter((e) => e.total > 0).length,
-    days,
-    top: entries
-      .filter((e) => e.total > 0)
-      .slice(0, TOP)
-      .map((e) => ({ login: e.login, avatar_url: e.avatar_url, total: e.total })),
-  };
-}
+const scoreOf = (start: string, war: PlayWar): WeekScore & { start: string } => ({
+  start,
+  winner: war.winner,
+  claude: war.claude.score,
+  codex: war.codex.score,
+});
 
 async function loadWeek(startDay: string): Promise<WeekLoad> {
-  const ids = await rivalryIds();
-  const refs = SIDES.flatMap((s) => (ids[s] ? [{ id: ids[s] as string }] : []));
-  const standings = await loadStandings(refs, new Date(`${startDay}T00:00:00Z`));
-  const live = (s: Side): SideLoad => {
-    const w = ids[s] ? standings.get(ids[s] as string) : undefined;
-    return sideOf(w?.town ?? null, w?.standings ?? [], w?.days ?? NO_DAYS);
-  };
+  // The live week is the same board /towns lists under the poster.
+  const board = await getPlayBoard(new Date(`${startDay}T12:00:00Z`));
+  const live = { claude: liveSide(board.entries, "claude"), codex: liveSide(board.entries, "codex") };
 
-  // Closed battle weeks, frozen by the Monday close (league_weeks).
+  // Closed war weeks, frozen by the Monday close. The practice row
+  // (week_start before BATTLE_START) never counts as a war week.
   const { data: rows, error } = await getSupabaseAdmin()
-    .from("league_weeks")
-    .select("league_id, week_start, standings")
-    .in("league_id", refs.map((r) => r.id))
+    .from("town_play_weeks")
+    .select("week_start, war")
     .gte("week_start", isoDay(new Date(BATTLE_START)))
     .lt("week_start", startDay)
-    .order("week_start");
+    .order("week_start")
+    .returns<{ week_start: string; war: PlayWar }[]>();
   if (error) throw error;
-  type Frozen = { town?: TownScore | null; standings?: FrozenEntry[] } | null;
-  const byWeek = new Map<string, Record<Side, Frozen>>();
-  for (const r of rows ?? []) {
-    const s: Side = r.league_id === ids.claude ? "claude" : "codex";
-    const entry = byWeek.get(r.week_start as string) ?? { claude: null, codex: null };
-    entry[s] = r.standings as Frozen;
-    byWeek.set(r.week_start as string, entry);
-  }
+  const closed = (rows ?? []).map((r) => scoreOf(r.week_start, r.war));
 
-  const prevStart = new Date(`${startDay}T00:00:00Z`);
-  prevStart.setUTCDate(prevStart.getUTCDate() - 7);
-  const prev = byWeek.get(isoDay(prevStart));
-  const frozenSide = (f: Frozen): SideLoad => {
-    const entries = f?.standings ?? [];
-    return sideOf(f?.town ?? null, entries, townDays(entries.map((e) => e.days ?? NO_DAYS)));
-  };
+  const prevDay = isoDay(new Date(Date.parse(`${startDay}T00:00:00Z`) - 7 * DAY_MS));
+  const prevRow = closed.some((w) => w.start === prevDay) ? await getPlayWeekRow(prevDay) : null;
+  const prev = prevRow
+    ? { claude: closedSide(prevRow.war.claude, prevRow.standings, "claude"), codex: closedSide(prevRow.war.codex, prevRow.standings, "codex") }
+    : null;
 
-  return {
-    live: { claude: live("claude"), codex: live("codex") },
-    closed: [...byWeek.entries()].map(([start, w]) => ({ start, claude: w.claude?.town ?? null, codex: w.codex?.town ?? null })),
-    prev: prev ? { claude: frozenSide(prev.claude), codex: frozenSide(prev.codex) } : null,
-  };
+  return { live, closed, prev };
 }
 
-// The hourly stats job moves the numbers; 5 minutes is fresh enough.
-const cachedWeek = unstable_cache(loadWeek, ["towns-battle-v2"], { revalidate: 300 });
+// The board moves with play; 5 minutes is fresh enough.
+const cachedWeek = unstable_cache(loadWeek, ["towns-battle-v3"], { revalidate: 300 });
 
 /** Claude vs Codex right now: this week's score and days (last week's final on Mondays), last week's result, the series. */
 export async function getBattleState(now: Date = new Date()): Promise<BattleState> {
   const start = weekStart(now);
   const load = await cachedWeek(isoDay(start));
 
-  const closed = load.closed.map((w) => ({ ...w, winner: weekWinner(w.claude, w.codex) }));
   const prev = new Date(start);
   prev.setUTCDate(prev.getUTCDate() - 7);
-  const found = closed.find((w) => w.start === isoDay(prev));
+  const found = load.closed.find((w) => w.start === isoDay(prev));
   const last = found ? { ...found, number: battleWeekNumber(found.start) } : null;
 
   const result = !!last && !!load.prev && now.getUTCDay() === 1;
@@ -156,24 +122,17 @@ export async function getBattleState(now: Date = new Date()): Promise<BattleStat
       codex: { ...sides.codex, daysWon: won("codex") },
     },
     lastWeek: last,
-    series: seriesRecord(closed.map((w) => w.winner)),
+    series: seriesRecord(load.closed.map((w) => w.winner)),
   };
 }
 
-/** A closed battle week as the Monday close froze it. Null when it isn't closed (or isn't a battle week). */
-export async function getWeekResult(startDay: string): Promise<{ winner: Side | null; claude: TownScore | null; codex: TownScore | null } | null> {
+/** A closed war week as the Monday close froze it (town_play_weeks). Null when it isn't closed or isn't a war week. */
+export async function getWeekResult(startDay: string): Promise<WeekScore | null> {
   if (Date.parse(`${startDay}T00:00:00Z`) < BATTLE_START) return null;
-  const ids = await rivalryIds();
-  const { data, error } = await getSupabaseAdmin()
-    .from("league_weeks")
-    .select("league_id, standings")
-    .in("league_id", SIDES.flatMap((s) => (ids[s] ? [ids[s] as string] : [])))
-    .eq("week_start", startDay);
-  if (error) throw error;
-  if (!data?.length) return null;
-  const town = (s: Side) => ((data.find((r) => r.league_id === ids[s])?.standings as { town?: TownScore | null } | null)?.town ?? null);
-  const [claude, codex] = [town("claude"), town("codex")];
-  return { winner: weekWinner(claude, codex), claude, codex };
+  const row = await getPlayWeekRow(startDay);
+  if (!row) return null;
+  const { winner, claude, codex } = scoreOf(startDay, row.war);
+  return { winner, claude, codex };
 }
 
 /** Each rivalry town's logo (its active league_assets logo), for the battle images. */

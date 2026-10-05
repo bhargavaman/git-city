@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return new Response("Bad week", { status: 400 });
     const r = await getWeekResult(week);
     if (!r) return new Response("Not found", { status: 404 });
-    data = { logos, kind: "result", week: battleWeekNumber(week), winner: r.winner, claude: r.claude?.perDev ?? null, codex: r.codex?.perDev ?? null };
+    data = { logos, kind: "result", week: battleWeekNumber(week), winner: r.winner, claude: r.claude, codex: r.codex };
   } else {
     data = { logos, kind: "start", week: battleWeekNumber(isoDay(new Date(BATTLE_START))) };
   }

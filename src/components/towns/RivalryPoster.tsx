@@ -132,7 +132,7 @@ export default function RivalryPoster({
           <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-cream normal-case sm:text-lg">
             {result ??
               (mine === null
-                ? "Which side codes more? Pick yours."
+                ? "Which side plays more? Pick yours."
                 : b
                   ? `You're on ${sides[mine].name}.`
                   : `You're on ${sides[mine].name}. Bring your friends before ${BATTLE_START_LABEL}.`)}

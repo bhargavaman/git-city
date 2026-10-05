@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { OG, building } from "@/lib/og/devHero";
-import { BATTLE_START, RIVALRY } from "@/lib/towns/rivalry";
+import { BATTLE_START, BATTLE_START_LABEL, RIVALRY } from "@/lib/towns/rivalry";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const alt = "Claude vs Codex - Git City Towns";
@@ -130,7 +130,7 @@ export default async function Image() {
             </div>
           ) : (
             <span style={{ marginTop: 26, fontSize: 18, color: OG.muted, letterSpacing: 2 }}>
-              {Date.now() < FIRST_BATTLE ? "BATTLE STARTS MONDAY" : "THE BATTLE IS ON"}
+              {Date.now() < FIRST_BATTLE ? `BATTLE STARTS ${BATTLE_START_LABEL.toUpperCase()}` : "THE BATTLE IS ON"}
             </span>
           )}
         </div>

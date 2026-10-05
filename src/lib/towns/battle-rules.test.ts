@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { townScore } from "@/lib/leagues/scoring";
+import { isoDay, townScore } from "@/lib/leagues/scoring";
 import { battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, weekWinner } from "./battle-rules";
 import { BATTLE_START } from "./rivalry";
 
@@ -60,7 +60,15 @@ describe("seriesRecord", () => {
 
 describe("battleWeekNumber", () => {
   it("counts from the first battle Monday", () => {
-    expect(battleWeekNumber("2026-10-12")).toBe(1);
-    expect(battleWeekNumber("2026-10-19")).toBe(2);
+    const first = isoDay(new Date(BATTLE_START));
+    const second = isoDay(new Date(BATTLE_START + 7 * 86_400_000));
+    expect(battleWeekNumber(first)).toBe(1);
+    expect(battleWeekNumber(second)).toBe(2);
+  });
+
+  it("starts on Oct 19: Oct 12-18 is the practice week", () => {
+    expect(battleWeekNumber("2026-10-19")).toBe(1);
+    expect(battleWeekNumber("2026-10-26")).toBe(2);
+    expect(battleWeekNumber("2026-10-12")).toBe(0);
   });
 });

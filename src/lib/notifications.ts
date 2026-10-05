@@ -42,6 +42,7 @@ export interface NotificationPayload {
   channels?: Channel[];                  // restrict to these channels (default: ["email"])
   skipIfActive?: boolean;                // skip if user was active < 5 min ago
   priority?: Priority;                   // high = never batch, low = batch eligible
+  replyTo?: string;                      // reply-to address (prize winners reply with their sponsor account email)
 
   // Batching (for low/normal priority)
   batchKey?: string;                     // group key: "raids:42", "social:42"
@@ -575,6 +576,7 @@ async function dispatchEmail(
       subject: payload.title,
       html: fullHtml,
       text,
+      replyTo: payload.replyTo,
       headers: unsubUrl
         ? {
             "List-Unsubscribe": `<${unsubUrl}>`,

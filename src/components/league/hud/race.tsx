@@ -3,6 +3,7 @@
 // Shared pieces of the town race HUD (widget, panel, "See all" dialogs):
 // GitHub-style day squares, town lanes, crew rows and the list window.
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { CircleHelp, Crown, X } from "lucide-react";
 import TrophyIcon from "@/components/towns/TrophyIcon";
 import type { LeagueStandingEntry } from "@/lib/leagues/standings";
@@ -11,6 +12,7 @@ import { DAILY_CONTRIBUTION_CAP, TOWN_MIN_CODERS } from "@/lib/leagues/scoring";
 import { DAY_COLORS, DAY_LETTERS, dayIndex, dayLevel } from "@/lib/towns/race-view";
 import { townDisplayName } from "@/lib/towns/names";
 import { Avatar, HUD_BOX, fmt, useCountdown } from "./shared";
+import { RULES_PATH } from "@/lib/towns/play-rules";
 
 /** Today's column (UTC), read once on the client. */
 export function useToday(): number {
@@ -140,10 +142,17 @@ export function HowItWorks() {
         <CircleHelp size={14} strokeWidth={2.5} aria-hidden />
       </button>
       {open && (
-        <p className="col-span-2 border-2 border-border bg-bg-card px-3 py-2 text-[9px] leading-relaxed text-warm normal-case">
-          Towns score the average GitHub contributions of members coding (max {DAILY_CONTRIBUTION_CAP}/day, {TOWN_MIN_CODERS}+ to race). #1 on Monday
-          takes the monument. The top member wears the crown.
-        </p>
+        <div className="col-span-2 border-2 border-border bg-bg-card px-3 py-2 text-[9px] leading-relaxed text-warm normal-case">
+          <p>
+            Towns score the average GitHub contributions of members coding (max {DAILY_CONTRIBUTION_CAP}/day, {TOWN_MIN_CODERS}+ to race). #1 on Monday
+            takes the monument. The top member wears the crown.
+          </p>
+          <p className="mt-1.5">
+            <Link href={RULES_PATH} className="-my-3 inline-block py-3 text-lime transition-colors hover:text-cream">
+              War and prize rules
+            </Link>
+          </p>
+        </div>
       )}
     </>
   );

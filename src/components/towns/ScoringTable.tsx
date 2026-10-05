@@ -1,4 +1,5 @@
-import type { FeaturedActivity } from "@/lib/towns/play-rules";
+import Link from "next/link";
+import { RULES_PATH, type FeaturedActivity } from "@/lib/towns/play-rules";
 import { SCORING_HEADLINE, SCORING_LINES, scoringRows, teamLine } from "@/lib/towns/play-board";
 
 // The poster's rules in one look: the headline, the two dynamic rules, the 5
@@ -26,6 +27,9 @@ export default function ScoringTable({ featured }: { featured: FeaturedActivity 
         ))}
       </ul>
       <p className="mt-3 text-center text-xs leading-relaxed text-muted normal-case sm:text-sm">{teamLine()}</p>
+      <Link href={RULES_PATH} className="mx-auto mt-1 flex min-h-11 w-fit items-center text-xs text-muted transition-colors hover:text-cream sm:text-sm">
+        Full rules
+      </Link>
     </div>
   );
 }

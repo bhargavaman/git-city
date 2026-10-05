@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Avatar } from "@/components/league/hud/shared";
 import type { PlayBoard } from "@/lib/towns/play";
-import { PRIZE_WINNERS } from "@/lib/towns/play-rules";
+import { PRIZE_WINNERS, RULES_PATH } from "@/lib/towns/play-rules";
 import { boardHeading, bonusLine, finePrint, prizeLine, sideColor, sponsorLine, winnersLine } from "@/lib/towns/play-board";
 
 // The prize board under the poster: the top 10 of every town member this week,
@@ -52,8 +52,15 @@ export default function PlayersThisWeek({ board }: { board: PlayBoard }) {
 
       <div className="mt-4 flex max-w-2xl flex-col gap-1.5 text-xs leading-relaxed text-muted normal-case">
         {board.lastWinners && <p className="text-cream">{winnersLine(board.lastWinners)}</p>}
-        <p>{finePrint()}</p>
-        {sponsor && <p>{sponsor}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          <div className="min-w-0">
+            <p>{finePrint()}</p>
+            {sponsor && <p>{sponsor}</p>}
+          </div>
+          <Link href={RULES_PATH} className="inline-flex min-h-11 shrink-0 items-center text-xs text-muted transition-colors hover:text-cream">
+            Full rules
+          </Link>
+        </div>
       </div>
     </section>
   );

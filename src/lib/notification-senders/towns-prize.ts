@@ -1,11 +1,11 @@
 import { sendNotification, type NotificationPayload } from "../notifications";
 import { mapWithConcurrency } from "../concurrency";
-import { EMAIL_BASE_URL, button, heading, paragraph, trackedUrl } from "../email/components";
+import { EMAIL_BASE_URL, button, heading, paragraph, textLink, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { isoDay, weekStart } from "../leagues/scoring";
 import { BATTLE_START } from "../towns/rivalry";
 import { battleWeekNumber } from "../towns/battle-rules";
-import { PRIZE_CREDITS, PRIZE_DELIVERY, PRIZE_SPONSOR, PRIZE_WINNERS } from "../towns/play-rules";
+import { PRIZE_CREDITS, PRIZE_DELIVERY, PRIZE_SPONSOR, PRIZE_WINNERS, RULES_PATH } from "../towns/play-rules";
 import type { PlayEntry } from "../towns/play-score";
 
 // The week's winners, once, after Sam's Monday check (/api/towns/play/publish).
@@ -32,15 +32,16 @@ function prizeHeader(d: PrizeWinnerEmailData) {
 export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLinks) {
   const { subject, preheader, line } = prizeHeader(d);
   const url = trackedUrl("/towns", "play_prize");
+  const rulesUrl = trackedUrl(RULES_PATH, "play_prize");
   const reason = `You're getting this because you finished in the top ${PRIZE_WINNERS} of Git City Towns.`;
   const html = renderLayout({
     title: subject,
     preheader,
-    body: [heading("You won week", String(d.week)), paragraph(line), button("See the board", url)].join("\n"),
+    body: [heading("You won week", String(d.week)), paragraph(line), button("See the board", url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
   });
-  const text = renderText({ lines: [subject, "", line, "", `See the board: ${url}`], reason, links });
+  const text = renderText({ lines: [subject, "", line, "", `See the board: ${url}`, "", `How scoring and checks work: ${rulesUrl}`], reason, links });
   return { subject, preheader, html, text };
 }
 

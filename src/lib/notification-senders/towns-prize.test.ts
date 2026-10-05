@@ -12,7 +12,7 @@ vi.mock("../notifications", () => ({
 }));
 
 import { publishRefusal, renderPrizeWinnerEmail, sendPrizeWinners, type PrizeWinnerEmailData } from "./towns-prize";
-import { TRANSACTIONAL_PREVIEW_LINKS } from "../email/previews/types";
+import { PREVIEW_LINKS, TRANSACTIONAL_PREVIEW_LINKS } from "../email/previews/types";
 
 const GLORY: PrizeWinnerEmailData = { week: 2, sponsor: null, delivery: "reply" };
 const REPLY: PrizeWinnerEmailData = { week: 2, sponsor: "Firecrawl", delivery: "reply" };
@@ -50,6 +50,14 @@ describe("renderPrizeWinnerEmail", () => {
       expect(e.html).not.toMatch(/\bpay|payment|raffle|money/i);
       expect(e.text).not.toMatch(/\bpay|payment|raffle|money/i);
     }
+  });
+
+  it("links the rules in html and text", () => {
+    const e = renderPrizeWinnerEmail(REPLY, PREVIEW_LINKS);
+    expect(e.html).toContain("/towns/rules?utm_source=email");
+    expect(e.html).toContain("utm_campaign=play_prize");
+    expect(e.html).toContain("How scoring and checks work");
+    expect(e.text).toMatch(/How scoring and checks work: \S+\/towns\/rules\?\S*utm_campaign=play_prize/);
   });
 
   it("links the board with the play_prize campaign", () => {

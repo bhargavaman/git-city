@@ -1,11 +1,12 @@
 import { getSupabaseAdmin } from "../supabase";
 import { sendNotification, type NotificationPayload } from "../notifications";
 import { mapWithConcurrency } from "../concurrency";
-import { EMAIL_BASE_URL, button, heroImage, paragraph, trackedUrl } from "../email/components";
+import { EMAIL_BASE_URL, button, heroImage, paragraph, textLink, trackedUrl } from "../email/components";
 import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { RIVALRY } from "../towns/rivalry";
 import { SIDES, battleWeekNumber, type Side } from "../towns/battle-rules";
 import { getWeekResult } from "../towns/battle";
+import { RULES_PATH } from "../towns/play-rules";
 import type { ClosedLeague } from "../leagues/close";
 import { contributions } from "./town-email";
 
@@ -38,16 +39,21 @@ function startHeader(d: BattleStartEmailData) {
 export function renderBattleStartEmail(d: BattleStartEmailData, links: EmailLinks) {
   const { subject, preheader, line } = startHeader(d);
   const url = trackedUrl("/towns", "battle_start");
+  const rulesUrl = trackedUrl(RULES_PATH, "battle_start");
   const reason = `You're getting this because you picked ${nameOf(d.side)} in Claude vs Codex on Git City.`;
   const html = renderLayout({
     title: subject,
     preheader,
     hero: heroImage({ src: d.heroUrl, href: url, alt: `Claude vs Codex, week 1. It counts from today.` }),
-    body: [paragraph(line), button("See the battle", url)].join("\n"),
+    body: [paragraph(line), button("See the battle", url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
   });
-  const text = renderText({ lines: [subject, "", line, "", `See the battle: ${url}`], reason, links });
+  const text = renderText({
+    lines: [subject, "", line, "", `See the battle: ${url}`, "", `How scoring and checks work: ${rulesUrl}`],
+    reason,
+    links,
+  });
   return { subject, preheader, html, text };
 }
 
@@ -108,16 +114,21 @@ function resultHeader(d: BattleResultEmailData) {
 export function renderBattleResultEmail(d: BattleResultEmailData, links: EmailLinks) {
   const { subject, preheader, line, cta } = resultHeader(d);
   const url = trackedUrl("/towns", "battle_result");
+  const rulesUrl = trackedUrl(RULES_PATH, "battle_result");
   const reason = `You're getting this because you're on ${nameOf(d.side)} in Claude vs Codex on Git City.`;
   const html = renderLayout({
     title: subject,
     preheader,
     hero: heroImage({ src: d.heroUrl, href: url, alt: `${subject}: Claude ${d.claude ?? "–"}, Codex ${d.codex ?? "–"} per dev` }),
-    body: [paragraph(line), button(cta, url)].join("\n"),
+    body: [paragraph(line), button(cta, url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
   });
-  const text = renderText({ lines: [subject, "", line, "", `${cta}: ${url}`], reason, links });
+  const text = renderText({
+    lines: [subject, "", line, "", `${cta}: ${url}`, "", `How scoring and checks work: ${rulesUrl}`],
+    reason,
+    links,
+  });
   return { subject, preheader, html, text };
 }
 

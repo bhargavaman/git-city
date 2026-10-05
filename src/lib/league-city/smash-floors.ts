@@ -108,3 +108,55 @@ export async function seenHash(secret: string, ip: string, ua: string): Promise<
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(`seen:${ip}|${ua}`)));
   return [...sig.slice(0, 8)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// ─── Site-side checks (smash route) ─────────────────────────
+// The room's floor entries arrive in the signed save. The site still checks
+// each field: a bad entry is dropped, and the save itself is never refused
+// because of floors.
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SEEN = /^[0-9a-f]{16}$/;
+const MAX_VICTIMS = 50;
+const MAX_SEEN_SITE = 5;
+const MAX_JUMPS = 10_000;
+const DAY_MS = 86_400_000;
+
+export const isUuid = (s: unknown): s is string => typeof s === "string" && UUID.test(s);
+
+const isDevId = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+const isLoginKey = (s: unknown): s is string => typeof s === "string" && s.length > 0 && s.length <= 39;
+
+/** The save's floor entries the site accepts: today or yesterday (UTC), n clamped to 1..FLOOR_ENTRY_MAX. */
+export function cleanFloors(raw: unknown, now: number): FloorEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const days = new Set([utcDay(now), utcDay(now - DAY_MS)]);
+  const out: FloorEntry[] = [];
+  for (const e of raw as unknown[]) {
+    if (!e || typeof e !== "object") continue;
+    const r = e as Record<string, unknown>;
+    if (!isLoginKey(r.login) || !isDevId(r.dev) || typeof r.day !== "string" || !days.has(r.day)) continue;
+    if (typeof r.n !== "number" || !Number.isFinite(r.n) || r.n <= 0) continue;
+    const n = Math.min(FLOOR_ENTRY_MAX, Math.max(1, Math.round(r.n)));
+
+    const victims: Record<string, number> = {};
+    if (r.victims && typeof r.victims === "object" && !Array.isArray(r.victims)) {
+      for (const [login, count] of Object.entries(r.victims as Record<string, unknown>)) {
+        if (Object.keys(victims).length >= MAX_VICTIMS) break;
+        if (isLoginKey(login) && typeof count === "number" && Number.isSafeInteger(count) && count > 0) victims[login] = count;
+      }
+    }
+    const jumps = typeof r.jumps === "number" && Number.isFinite(r.jumps) ? Math.min(MAX_JUMPS, Math.max(0, Math.round(r.jumps))) : 0;
+    const seen = Array.isArray(r.seen)
+      ? (r.seen as unknown[]).filter((s): s is string => typeof s === "string" && SEEN.test(s)).slice(0, MAX_SEEN_SITE)
+      : [];
+
+    out.push({ dev: r.dev, login: r.login, day: r.day, n, victims, jumps, seen });
+  }
+  return out;
+}
+
+/** Own-town floors score 0: drops entries whose dev is one of this town's (a player who joined or switched while connected). */
+export function dropOwnTown(entries: FloorEntry[], devIds: Record<string, number>): FloorEntry[] {
+  const own = new Set(Object.values(devIds));
+  return entries.filter((e) => !own.has(e.dev));
+}

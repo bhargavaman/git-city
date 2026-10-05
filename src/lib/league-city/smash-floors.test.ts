@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { FLOOR_ENTRY_MAX, FloorTally, MAX_SEEN, impliedJump, seenHash } from "./smash-floors";
+import { FLOOR_ENTRY_MAX, FloorTally, MAX_SEEN, cleanFloors, dropOwnTown, impliedJump, isUuid, seenHash } from "./smash-floors";
 
 const T = Date.UTC(2026, 9, 12, 15, 0, 0); // Mon Oct 12, 15:00 UTC
 const ids = () => {
@@ -131,5 +131,106 @@ describe("seenHash", () => {
     expect(await seenHash("s".repeat(32), "1.2.3.5", "Mozilla/5.0")).not.toBe(a);
     const want = createHmac("sha256", "s".repeat(32)).update("seen:1.2.3.4|Mozilla/5.0").digest("hex").slice(0, 16);
     expect(a).toBe(want);
+  });
+});
+
+const NOW = Date.parse("2026-10-10T12:00:00Z");
+const good = {
+  dev: 42,
+  login: "octocat",
+  day: "2026-10-10",
+  n: 12,
+  victims: { torvalds: 8, gaearon: 4 },
+  jumps: 0,
+  seen: ["0123456789abcdef"],
+};
+
+describe("cleanFloors", () => {
+  it("keeps a valid entry as is", () => {
+    expect(cleanFloors([good], NOW)).toEqual([good]);
+  });
+
+  it("returns [] for anything that isn't an array", () => {
+    expect(cleanFloors(undefined, NOW)).toEqual([]);
+    expect(cleanFloors("x", NOW)).toEqual([]);
+    expect(cleanFloors({ dev: 1 }, NOW)).toEqual([]);
+  });
+
+  it("keeps today and yesterday (UTC), drops two days ago and tomorrow", () => {
+    const days = ["2026-10-10", "2026-10-09", "2026-10-08", "2026-10-11"];
+    const out = cleanFloors(days.map((day) => ({ ...good, day })), NOW);
+    expect(out.map((e) => e.day)).toEqual(["2026-10-10", "2026-10-09"]);
+  });
+
+  it("drops a bad login and a bad dev", () => {
+    const bad = [
+      { ...good, login: "" },
+      { ...good, login: "x".repeat(40) },
+      { ...good, login: 7 },
+      { ...good, dev: 0 },
+      { ...good, dev: -3 },
+      { ...good, dev: 1.5 },
+      { ...good, dev: "42" },
+      null,
+    ];
+    expect(cleanFloors(bad, NOW)).toEqual([]);
+  });
+
+  it("drops n <= 0 or non-finite, rounds, and clamps n to FLOOR_ENTRY_MAX", () => {
+    const out = cleanFloors(
+      [{ ...good, n: 0 }, { ...good, n: -5 }, { ...good, n: Number.NaN }, { ...good, n: "9" }, { ...good, n: 900 }, { ...good, n: 0.3 }, { ...good, n: 7.6 }],
+      NOW,
+    );
+    expect(out.map((e) => e.n)).toEqual([400, 1, 8]);
+    expect(FLOOR_ENTRY_MAX).toBe(400);
+  });
+
+  it("filters victims to login keys with positive integer counts, max 50", () => {
+    const many = Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`v${i}`, 1]));
+    const [a] = cleanFloors([{ ...good, victims: { ok: 3, zero: 0, neg: -1, frac: 1.5, str: "2", ["y".repeat(40)]: 2 } }], NOW);
+    expect(a.victims).toEqual({ ok: 3 });
+    const [b] = cleanFloors([{ ...good, victims: many }], NOW);
+    expect(Object.keys(b.victims)).toHaveLength(50);
+    const [c] = cleanFloors([{ ...good, victims: "nope" }], NOW);
+    expect(c.victims).toEqual({});
+  });
+
+  it("clamps jumps to a non-negative int up to 10,000", () => {
+    const out = cleanFloors([{ ...good, jumps: -2 }, { ...good, jumps: 3.4 }, { ...good, jumps: 99_999 }, { ...good, jumps: "x" }], NOW);
+    expect(out.map((e) => e.jumps)).toEqual([0, 3, 10_000, 0]);
+  });
+
+  it("keeps only 16-char lowercase hex seen hashes, max 5", () => {
+    const hex = (i: number) => i.toString(16).padStart(16, "0");
+    const [a] = cleanFloors([{ ...good, seen: ["0123456789abcdef", "XYZ", "0123456789ABCDEF", "0123456789abcde", 5, hex(1)] }], NOW);
+    expect(a.seen).toEqual(["0123456789abcdef", hex(1)]);
+    const [b] = cleanFloors([{ ...good, seen: Array.from({ length: 9 }, (_, i) => hex(i)) }], NOW);
+    expect(b.seen).toHaveLength(5);
+    const [c] = cleanFloors([{ ...good, seen: "0123456789abcdef" }], NOW);
+    expect(c.seen).toEqual([]);
+  });
+});
+
+describe("dropOwnTown", () => {
+  it("drops entries whose dev lives in this town", () => {
+    const devIds = { torvalds: 1, octocat: 42 };
+    const other = { ...good, dev: 7, login: "gaearon" };
+    expect(dropOwnTown([good, other], devIds)).toEqual([other]);
+  });
+
+  it("keeps everything when the town has no devs", () => {
+    expect(dropOwnTown([good], {})).toEqual([good]);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts a v4 uuid and rejects anything else", () => {
+    expect(isUuid("3f2b8c1e-9d4a-4f6b-8a2c-1e5d7b9f0a12")).toBe(true);
+    expect(isUuid(crypto.randomUUID())).toBe(true);
+    expect(isUuid("x")).toBe(false);
+    expect(isUuid("")).toBe(false);
+    expect(isUuid(undefined)).toBe(false);
+    expect(isUuid(123)).toBe(false);
+    expect(isUuid("3f2b8c1e-9d4a-4f6b-8a2c-1e5d7b9f0a1")).toBe(false);
   });
 });

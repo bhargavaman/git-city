@@ -112,7 +112,6 @@ export function rulesCopy(v: PlayRulesView): RulesCopy {
       title: "Fair play",
       lines: [
         "Points are counted on our servers, with daily caps.",
-        "Every Monday a person checks the top 15 by hand.",
         "Alts and new accounts don't count.",
       ],
       report: { label: "See something off? Open an issue →", href: REPORT_URL },

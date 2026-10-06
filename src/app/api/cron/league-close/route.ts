@@ -6,6 +6,8 @@ import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
 import { BATTLE_START, isRivalry } from "@/lib/towns/rivalry";
 import { sendBattleResults, sendBattleStart } from "@/lib/notification-senders/towns-battle";
 import { closePlayWeek } from "@/lib/towns/play";
+import { publishPlayWeek } from "@/lib/towns/play-publish";
+import { publishRefusal } from "@/lib/notification-senders/towns-prize";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,13 +35,16 @@ export async function GET(request: NextRequest) {
   try {
     // Play points first, in their own try: a failed race close can't lose
     // the play week, and a failed play close can't stop the races.
-    let play: { written: boolean; week_start: string } | { skipped: string } | { error: string };
+    let play: { written: boolean; week_start: string; publish: unknown } | { skipped: string } | { error: string };
     if (start.getTime() < BATTLE_START) {
       play = { skipped: "before the first week" };
     } else {
       try {
         const r = await closePlayWeek(start);
-        play = { written: r.written, week_start: r.row.week_start };
+        // Winners go out with the close: no one has to publish them by hand.
+        const refusal = publishRefusal(r.row.week_start, { replyTo: process.env.PRIZE_REPLY_TO });
+        const pub = refusal ? { status: "refused", error: refusal.error } : await publishPlayWeek(r.row.week_start);
+        play = { written: r.written, week_start: r.row.week_start, publish: pub };
       } catch (err) {
         console.error("[league-close] play:", err);
         play = { error: String(err) };

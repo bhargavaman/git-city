@@ -30,13 +30,13 @@ describe("rulesCopy never says what §11.7 forbids", () => {
   });
 
   it("shows the one-prize line only when that rule is on", () => {
-    for (const v of views()) expect(text(v).includes("One prize per player")).toBe(v.onePrizePerSeason);
+    for (const v of views()) expect(text(v).includes("one per player")).toBe(v.onePrizePerSeason);
   });
 
-  it("stays short: under 200 words in any state", () => {
+  it("stays short: under 150 words in any state", () => {
     const words = (x: unknown): number =>
       typeof x === "string" ? x.split(/\s+/).filter(Boolean).length : x && typeof x === "object" ? Object.values(x).reduce((n: number, y) => n + words(y), 0) : 0;
-    for (const v of views()) expect(words(rulesCopy(v))).toBeLessThan(200);
+    for (const v of views()) expect(words(rulesCopy(v))).toBeLessThan(150);
   });
 });
 
@@ -49,41 +49,44 @@ describe("rulesCopy lines", () => {
     expect(rulesCopy(rulesView(PHASES.ended, null)).status).toEqual({ text: "Season over", endsAt: null });
   });
 
-  it("shows the week's 2× and bonus as tiles", () => {
-    expect(rulesCopy(rulesView(PHASES.prize, { next_bonus: { side: "codex", pct: 16 } })).tiles).toEqual([
-      { big: "2× Floors", side: null, sub: "Points and cap double" },
-      { big: "+16% Codex", side: "codex", sub: "Prize points, smaller side" },
-    ]);
-    expect(rulesCopy(rulesView(PHASES.prize, { next_bonus: null })).tiles?.[1]).toMatchObject({ big: "No bonus" });
-    expect(rulesCopy(rulesView(PHASES.before, null)).tiles).toEqual([{ big: "2× Floors", side: null, sub: "Counts double in week 1" }]);
-    expect(rulesCopy(rulesView(PHASES.prize, null)).tiles?.[1]).toEqual({ big: "No bonus", side: null, sub: "Set at Monday's close" });
-    expect(rulesCopy(rulesView(PHASES.ended, null)).tiles).toBeNull();
+  it("doubles the week's activity in the play card", () => {
+    const rows = rulesCopy(base).play.rows;
+    expect(rows[0]).toMatchObject({ activity: "floors", pts: "2 pts", cap: "400/day", doubled: true });
+    expect(rows.filter((r) => r.doubled)).toHaveLength(1);
   });
 
-  it("says how a side wins in 3 lines", () => {
-    expect(rulesCopy(base).war.steps).toEqual([
-      "Average points of its players who scored",
-      "Needs 3 players to have a score",
-      "+25 town that grew most · +25 most visited",
+  it("says how a side wins in 4 lines", () => {
+    expect(rulesCopy(base).war.lines).toEqual([
+      "Higher average points per player wins",
+      "Needs 3 players who scored",
+      "+25 town that grew most",
+      "+25 most visited town",
     ]);
   });
 
-  it("leads the prize with the sponsor only when there is one", () => {
-    expect(rulesCopy({ ...base, sponsor: null }).prize.lead).toBe("Top 10 each week · named every Monday");
-    expect(rulesCopy({ ...base, sponsor: "Firecrawl" }).prize.lead).toBe("Top 10 each week · 10,000 Firecrawl credits each");
-    expect(rulesCopy(base).prize.who[0]).toBe("GitHub account created before Sep 8, 2026");
+  it("shows the live smaller-side bonus, or its maximum", () => {
+    expect(rulesCopy(rulesView(PHASES.prize, { next_bonus: { side: "codex", pct: 16 } })).prize.bonus).toEqual({
+      side: "codex",
+      text: "Codex +16% this week (smaller side)",
+    });
+    expect(rulesCopy(base).prize.bonus).toEqual({ side: null, text: "Smaller side gets up to +20%" });
+  });
+
+  it("names the sponsor's credits only when there is one", () => {
+    expect(rulesCopy({ ...base, sponsor: null }).prize).toMatchObject({ big: "Top 10", sub: "every week" });
+    expect(rulesCopy({ ...base, sponsor: "Firecrawl" }).prize.sub).toBe("10,000 Firecrawl credits each");
+    expect(rulesCopy(base).prize.who[0]).toEqual({ term: "Account", text: "before Sep 8, 2026" });
   });
 
   it("links the report to a public GitHub issue", () => {
     expect(rulesCopy(base).fair.report.href).toBe("https://github.com/srizzon/git-city/issues/new?title=Towns%20report%3A%20%40");
   });
 
-  it("marks the current week in the dates table", () => {
-    const rows = (now: number) => rulesCopy(rulesView(now, null)).dates.rows;
-    expect(rows(PHASES.prize).map((r) => r.current)).toEqual([true, false, false, false]);
-    expect(rows(at(2026, 10, 20)).map((r) => r.current)).toEqual([false, true, false, false]);
-    expect(rows(PHASES.before).some((r) => r.current)).toBe(false);
-    expect(rows(PHASES.ended).some((r) => r.current)).toBe(false);
-    expect(rows(PHASES.prize).map((r) => r.double)).toEqual(["2× Floors", "2× Raids", "2× Visits", "2× Kudos"]);
+  it("marks the current week", () => {
+    const weeks = (now: number) => rulesCopy(rulesView(now, null)).weeks;
+    expect(weeks(PHASES.prize).map((w) => w.current)).toEqual([true, false, false, false]);
+    expect(weeks(at(2026, 10, 20)).map((w) => w.current)).toEqual([false, true, false, false]);
+    expect(weeks(PHASES.before).some((w) => w.current)).toBe(false);
+    expect(weeks(PHASES.prize).map((w) => `${w.dates} ${w.double}`)).toEqual(["Oct 12 2× Floors", "Oct 19 2× Raids", "Oct 26 2× Visits", "Nov 2 2× Kudos"]);
   });
 });

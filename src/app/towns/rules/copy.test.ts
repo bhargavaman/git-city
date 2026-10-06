@@ -3,7 +3,7 @@ import { rulesView, type PlayRulesView } from "@/lib/towns/play-rules-view";
 import { rulesCopy } from "./copy";
 
 const at = (y: number, m: number, d: number, h = 12) => Date.UTC(y, m - 1, d, h);
-const PHASES = { before: at(2026, 10, 5), practice: at(2026, 10, 14), prize: at(2026, 10, 20), ended: at(2026, 11, 20) };
+const PHASES = { before: at(2026, 10, 5), prize: at(2026, 10, 13), ended: at(2026, 11, 20) };
 
 function views(): PlayRulesView[] {
   const out: PlayRulesView[] = [];
@@ -44,9 +44,8 @@ describe("rulesCopy lines", () => {
   const base = rulesView(PHASES.prize, null);
 
   it("picks the status chip by phase", () => {
-    expect(rulesCopy(rulesView(PHASES.before, null)).status).toEqual({ text: "Practice starts Mon, Oct 12", endsAt: null });
-    expect(rulesCopy(rulesView(PHASES.practice, null)).status.text).toBe("Practice week");
-    expect(rulesCopy(base).status).toEqual({ text: "Week 1 of 4 · ends in", endsAt: Date.UTC(2026, 9, 26) });
+    expect(rulesCopy(rulesView(PHASES.before, null)).status).toEqual({ text: "Starts Mon, Oct 12", endsAt: null });
+    expect(rulesCopy(base).status).toEqual({ text: "Week 1 of 4 · ends in", endsAt: Date.UTC(2026, 9, 19) });
     expect(rulesCopy(rulesView(PHASES.ended, null)).status).toEqual({ text: "Season over", endsAt: null });
   });
 
@@ -56,7 +55,7 @@ describe("rulesCopy lines", () => {
       { big: "+16% Codex", side: "codex", sub: "Prize points, smaller side" },
     ]);
     expect(rulesCopy(rulesView(PHASES.prize, { next_bonus: null })).tiles?.[1]).toMatchObject({ big: "No bonus" });
-    expect(rulesCopy(rulesView(PHASES.practice, null)).tiles).toEqual([{ big: "Oct 19", side: null, sub: "Prizes, 2× and the bonus start" }]);
+    expect(rulesCopy(rulesView(PHASES.before, null)).tiles).toEqual([{ big: "2× Floors", side: null, sub: "Counts double in week 1" }]);
     expect(rulesCopy(rulesView(PHASES.prize, null)).tiles?.[1]).toEqual({ big: "No bonus", side: null, sub: "Set at Monday's close" });
     expect(rulesCopy(rulesView(PHASES.ended, null)).tiles).toBeNull();
   });
@@ -81,10 +80,10 @@ describe("rulesCopy lines", () => {
 
   it("marks the current week in the dates table", () => {
     const rows = (now: number) => rulesCopy(rulesView(now, null)).dates.rows;
-    expect(rows(PHASES.practice).map((r) => r.current)).toEqual([true, false, false, false, false]);
-    expect(rows(PHASES.prize).map((r) => r.current)).toEqual([false, true, false, false, false]);
+    expect(rows(PHASES.prize).map((r) => r.current)).toEqual([true, false, false, false]);
+    expect(rows(at(2026, 10, 20)).map((r) => r.current)).toEqual([false, true, false, false]);
     expect(rows(PHASES.before).some((r) => r.current)).toBe(false);
     expect(rows(PHASES.ended).some((r) => r.current)).toBe(false);
-    expect(rows(PHASES.prize).map((r) => r.double)).toEqual(["–", "2× Floors", "2× Raids", "2× Visits", "2× Kudos"]);
+    expect(rows(PHASES.prize).map((r) => r.double)).toEqual(["2× Floors", "2× Raids", "2× Visits", "2× Kudos"]);
   });
 });

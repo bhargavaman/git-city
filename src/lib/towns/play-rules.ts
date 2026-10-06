@@ -72,30 +72,28 @@ export const PRIZE_CREDITS: number = 10_000;
 export const PRIZE_DELIVERY: "reply" | "code" = "reply";
 export const ONE_PRIZE_PER_SEASON: boolean = true;
 
-// Season: a practice week, then 4 prize weeks from BATTLE_START.
+// Season: 4 prize weeks from BATTLE_START.
 const DAY = 86_400_000;
 export const SEASON_WEEKS = 4;
-export const PRACTICE_START = BATTLE_START - 7 * DAY;
 export const SEASON_END = BATTLE_START + SEASON_WEEKS * 7 * DAY;
 
 /** The activity that counts double, by week start (UTC Monday). Published in advance. */
 export const FEATURED_ROTATION: Readonly<Record<string, FeaturedActivity>> = {
-  "2026-10-19": "floors",
-  "2026-10-26": "raids",
-  "2026-11-02": "visits",
-  "2026-11-09": "kudos",
+  "2026-10-12": "floors",
+  "2026-10-19": "raids",
+  "2026-10-26": "visits",
+  "2026-11-02": "kudos",
 };
 
-/** The week's 2× activity, or null (practice week, after the season, or not a week start). */
+/** The week's 2× activity, or null (before or after the season, or not a week start). */
 export function featuredFor(weekStartDay: string): FeaturedActivity | null {
   return Object.hasOwn(FEATURED_ROTATION, weekStartDay) ? FEATURED_ROTATION[weekStartDay] : null;
 }
 
-export type PlayPhase = "before" | "practice" | "prize" | "ended";
+export type PlayPhase = "before" | "prize" | "ended";
 
 export function playPhase(now: number): PlayPhase {
-  if (now < PRACTICE_START) return "before";
-  if (now < BATTLE_START) return "practice";
+  if (now < BATTLE_START) return "before";
   if (now < SEASON_END) return "prize";
   return "ended";
 }

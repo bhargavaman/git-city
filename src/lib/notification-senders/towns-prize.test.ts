@@ -68,8 +68,8 @@ describe("renderPrizeWinnerEmail", () => {
 describe("publishRefusal", () => {
   const ok = { replyTo: "samuel@thegitcity.com" };
 
-  it("refuses the practice week", () => {
-    expect(publishRefusal("2026-10-12", ok)?.status).toBe(400);
+  it("refuses a week before the season", () => {
+    expect(publishRefusal("2026-10-05", ok)?.status).toBe(400);
   });
 
   it("refuses a day that isn't a Monday, or a malformed week", () => {
@@ -89,7 +89,7 @@ describe("publishRefusal", () => {
   });
 
   it("lets a prize week through", () => {
-    expect(publishRefusal("2026-10-19", ok)).toBeNull();
+    expect(publishRefusal("2026-10-12", ok)).toBeNull();
     expect(publishRefusal("2026-11-09", ok)).toBeNull();
   });
 });
@@ -102,12 +102,12 @@ describe("sendPrizeWinners", () => {
 
   it("sends one forced, deduped email per winner and counts the successes", async () => {
     process.env.PRIZE_REPLY_TO = "samuel@thegitcity.com";
-    const n = await sendPrizeWinners("2026-10-26", [
+    const n = await sendPrizeWinners("2026-10-19", [
       { developer_id: 7, login: "pyromains" },
       { developer_id: 12, login: "srizzon" },
     ]);
     expect(n).toBe(2);
-    expect(sent.map((p) => p.dedupKey)).toEqual(["play_prize:7:2026-10-26", "play_prize:12:2026-10-26"]);
+    expect(sent.map((p) => p.dedupKey)).toEqual(["play_prize:7:2026-10-19", "play_prize:12:2026-10-19"]);
     for (const p of sent) {
       expect(p.type).toBe("play_prize");
       expect(p.category).toBe("leagues");
@@ -119,7 +119,7 @@ describe("sendPrizeWinners", () => {
   });
 
   it("sends nothing for an empty list", async () => {
-    expect(await sendPrizeWinners("2026-10-26", [])).toBe(0);
+    expect(await sendPrizeWinners("2026-10-19", [])).toBe(0);
     expect(sent).toHaveLength(0);
   });
 });

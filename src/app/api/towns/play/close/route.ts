@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { weekStart } from "@/lib/leagues/scoring";
 import { closePlayWeek } from "@/lib/towns/play";
-import { PRACTICE_START } from "@/lib/towns/play-rules";
+import { BATTLE_START } from "@/lib/towns/rivalry";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const week = request.nextUrl.searchParams.get("week");
   if (!week || !/^\d{4}-\d{2}-\d{2}$/.test(week)) return NextResponse.json({ error: "Bad week" }, { status: 400 });
   const start = weekStart(new Date(`${week}T12:00:00Z`));
-  if (start.getTime() < PRACTICE_START) return NextResponse.json({ error: "Before the practice week" }, { status: 400 });
+  if (start.getTime() < BATTLE_START) return NextResponse.json({ error: "Before the first week" }, { status: 400 });
   const force = request.nextUrl.searchParams.get("force") === "1";
 
   try {

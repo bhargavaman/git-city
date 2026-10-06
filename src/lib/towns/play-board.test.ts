@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACTIVITIES, capFor, pointsFor, PRIZE_SPONSOR, TEAM_BONUS } from "./play-rules";
-import { boardHeading, boardWeek, bonusLine, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "./play-board";
+import { boardHeading, boardWeek, bonusLine, emptyLine, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "./play-board";
 
 describe("play-rules numbers this board relies on", () => {
   it("doubles points and cap for the featured activity only", () => {
@@ -41,18 +41,18 @@ describe("scoringRows", () => {
 });
 
 describe("this week copy", () => {
-  it("names the practice week only during it", () => {
-    expect(boardHeading("practice")).toBe("Practice week");
+  it("calls it this week, and last week once the season is over", () => {
     expect(boardHeading("before")).toBe("This week");
     expect(boardHeading("prize")).toBe("This week");
-    expect(boardHeading("ended")).toBe("This week");
+    expect(boardHeading("ended")).toBe("Last week");
   });
 
   it("notes the prize by phase, with and without a sponsor", () => {
     expect(prizeNote("prize", "Firecrawl")).toBe("10,000 Firecrawl credits each");
     expect(prizeNote("prize", null)).toBe("Named every Monday");
-    expect(prizeNote("practice", "Firecrawl")).toBe("Prizes start Mon, Oct 19");
-    expect(prizeNote("before", "Firecrawl")).toBe("Prizes start Mon, Oct 19");
+    expect(prizeNote("before", "Firecrawl")).toBeNull();
+    expect(emptyLine("before")).toBe("Points count from Mon, Oct 12");
+    expect(emptyLine("prize")).toBe("Nobody scored yet");
     expect(prizeNote("ended", "Firecrawl")).toBe("Season over");
   });
 
@@ -72,10 +72,9 @@ describe("this week copy", () => {
       ...scoringRows(null).flatMap((r) => [r.label, r.pts, r.cap ?? ""]),
       ...scoringRows("kudos").flatMap((r) => [r.label, r.pts, r.cap ?? ""]),
       ...teamRows().flatMap((r) => [r.label, r.pts]),
-      boardHeading("practice"),
+      boardHeading("before"),
       boardHeading("prize"),
-      prizeNote("before"),
-      prizeNote("practice"),
+      emptyLine("before"),
       prizeNote("prize"),
       prizeNote("ended"),
       bonusLine({ side: "claude", pct: 5 }).rest,
@@ -85,7 +84,7 @@ describe("this week copy", () => {
 });
 
 describe("boardWeek", () => {
-  const ended = { week_start: "2026-10-19", next_bonus: { side: "codex" as const, pct: 16 }, winners: ["ana", "bo"], published_at: "2026-10-26T12:00:00Z" };
+  const ended = { week_start: "2026-10-12", next_bonus: { side: "codex" as const, pct: 16 }, winners: ["ana", "bo"], published_at: "2026-10-26T12:00:00Z" };
 
   it("is empty before any close", () => {
     expect(boardWeek(null, "prize")).toEqual({ bonus: null, lastWinners: null });
@@ -94,12 +93,12 @@ describe("boardWeek", () => {
   it("takes this week's bonus from the ended week's row during a prize week", () => {
     expect(boardWeek(ended, "prize")).toEqual({
       bonus: { side: "codex", pct: 16 },
-      lastWinners: { week: "2026-10-19", number: 1, logins: ["ana", "bo"] },
+      lastWinners: { week: "2026-10-12", number: 1, logins: ["ana", "bo"] },
     });
   });
 
   it("shows no bonus outside prize weeks or at 0%", () => {
-    expect(boardWeek(ended, "practice").bonus).toBeNull();
+    expect(boardWeek(ended, "before").bonus).toBeNull();
     expect(boardWeek(ended, "ended").bonus).toBeNull();
     expect(boardWeek({ ...ended, next_bonus: { side: "codex", pct: 0 } }, "prize").bonus).toBeNull();
   });

@@ -7,11 +7,11 @@ const CAMPAIGN = "towns_launch";
 function announce(ctx: CampaignRenderContext) {
   const townsUrl = trackedUrl("/towns", CAMPAIGN);
   const buildings = ctx.stats.buildings.toLocaleString("en-US");
-  const subject = "Claude vs Codex starts Oct 19";
-  const preheader = "From Mon, Oct 19, everything you do in Git City scores. The side with the most points per player wins the week.";
+  const subject = "Claude vs Codex starts Oct 12";
+  const preheader = "From Mon, Oct 12, everything you do in Git City scores. The side with the most points per player wins the week.";
   const lines = [
     `Git City just passed ${buildings} buildings. Now it has a war.`,
-    "From Mon, Oct 19, everything you do in Git City scores. The side with the most points per player wins the week.",
+    "From Mon, Oct 12, everything you do in Git City scores. The side with the most points per player wins the week.",
     "Meanwhile, drive into any town and knock its buildings down. Anyone's but yours.",
   ];
   const reason = "You're getting this because you have a building in Git City. We only email product news for big launches.";
@@ -19,7 +19,7 @@ function announce(ctx: CampaignRenderContext) {
   const html = renderLayout({
     title: subject,
     preheader,
-    hero: heroImage({ src: `${EMAIL_BASE_URL}/towns/opengraph-image`, href: townsUrl, alt: "Git City Towns: Claude vs Codex. Pick your side. Battle starts Oct 19." }),
+    hero: heroImage({ src: `${EMAIL_BASE_URL}/towns/opengraph-image`, href: townsUrl, alt: "Git City Towns: Claude vs Codex. Pick your side. Battle starts Oct 12." }),
     body: [heading("Claude vs Codex"), ...lines.map((l) => paragraph(l)), button("Pick your side", townsUrl)].join("\n"),
     reason,
     links: ctx.links,
@@ -33,9 +33,9 @@ function announce(ctx: CampaignRenderContext) {
 function repermission(ctx: CampaignRenderContext) {
   const buildings = ctx.stats.buildings.toLocaleString("en-US");
   const subject = "Still want Git City news?";
-  const preheader = "Claude vs Codex starts Oct 19. Tell us if you want updates like this.";
+  const preheader = "Claude vs Codex starts Oct 12. Tell us if you want updates like this.";
   const lines = [
-    `It's been a while. Git City passed ${buildings} buildings, and on Oct 19 it starts a weekly war: Claude devs against Codex devs, and the side with the most points per player wins.`,
+    `It's been a while. Git City passed ${buildings} buildings, and on Oct 12 it starts a weekly war: Claude devs against Codex devs, and the side with the most points per player wins.`,
     "We'll only keep emailing you about launches like this if you say so.",
   ];
   const skip = "Not interested? Do nothing and we'll stop sending product news.";
@@ -44,7 +44,7 @@ function repermission(ctx: CampaignRenderContext) {
   const html = renderLayout({
     title: subject,
     preheader,
-    hero: heroImage({ src: `${EMAIL_BASE_URL}/towns/opengraph-image`, href: ctx.confirmUrl, alt: "Git City Towns: Claude vs Codex. Pick your side. Battle starts Oct 19." }),
+    hero: heroImage({ src: `${EMAIL_BASE_URL}/towns/opengraph-image`, href: ctx.confirmUrl, alt: "Git City Towns: Claude vs Codex. Pick your side. Battle starts Oct 12." }),
     body: [heading("Still want Git City news?"), ...lines.map((l) => paragraph(l)), button("Yes, keep me posted", ctx.confirmUrl), spacer(20), paragraph(skip, { muted: true })].join("\n"),
     reason,
     links: ctx.links,

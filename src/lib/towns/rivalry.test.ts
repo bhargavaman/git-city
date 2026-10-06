@@ -73,9 +73,9 @@ describe("timeUntil", () => {
 });
 
 describe("BATTLE_START", () => {
-  it("opens the first battle week on Mon Oct 19, after the Oct 12-18 practice week", () => {
-    expect(BATTLE_START).toBe(Date.UTC(2026, 9, 19));
+  it("opens the first battle week on Mon Oct 12", () => {
+    expect(BATTLE_START).toBe(Date.UTC(2026, 9, 12));
     expect(new Date(BATTLE_START).getUTCDay()).toBe(1);
-    expect(BATTLE_START_LABEL).toBe("Mon, Oct 19");
+    expect(BATTLE_START_LABEL).toBe("Mon, Oct 12");
   });
 });

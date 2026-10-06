@@ -2,14 +2,16 @@ import Link from "next/link";
 import { Avatar } from "@/components/league/hud/shared";
 import type { PlayBoard } from "@/lib/towns/play";
 import { PRIZE_WINNERS, RULES_PATH } from "@/lib/towns/play-rules";
-import { boardHeading, bonusLine, prizeNote, sideColor, winnersLine } from "@/lib/towns/play-board";
+import { boardHeading, bonusLine, emptyLine, prizeNote, sideColor, winnersLine } from "@/lib/towns/play-board";
 import ScoreCard from "./ScoreCard";
 
 // Under the war bar: how to score on the left, the week's top 10 on the right
 // (stacked on phones). The hero already says how a side wins; this section
 // only adds what it doesn't: the points, the team bonus and who leads.
 export default function ThisWeek({ board }: { board: PlayBoard }) {
-  const top = board.entries.filter((e) => e.prize > 0).slice(0, PRIZE_WINNERS);
+  // Before the season the week's points don't count yet, so the card stays empty.
+  const top = board.phase === "before" ? [] : board.entries.filter((e) => e.prize > 0).slice(0, PRIZE_WINNERS);
+  const note = prizeNote(board.phase);
   const bonus = board.bonus ? bonusLine(board.bonus) : null;
 
   return (
@@ -27,10 +29,10 @@ export default function ThisWeek({ board }: { board: PlayBoard }) {
         <div className="border-[3px] border-border bg-bg-card p-3 sm:p-4">
           <div className="flex items-baseline justify-between gap-3 text-xs">
             <p className="text-muted">Top {PRIZE_WINNERS}</p>
-            <p className="text-right text-muted normal-case">{prizeNote(board.phase)}</p>
+            {note && <p className="text-right text-muted normal-case">{note}</p>}
           </div>
           {top.length === 0 ? (
-            <p className="mt-3 text-xs text-muted normal-case">Nobody scored yet</p>
+            <p className="mt-3 text-xs text-muted normal-case">{emptyLine(board.phase)}</p>
           ) : (
             <ol className="mt-1">
               {top.map((e, i) => {

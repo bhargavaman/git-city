@@ -70,7 +70,7 @@ async function loadWeek(startDay: string): Promise<WeekLoad> {
   const board = await getPlayBoard(new Date(`${startDay}T12:00:00Z`));
   const live = { claude: liveSide(board.entries, "claude"), codex: liveSide(board.entries, "codex") };
 
-  // Closed war weeks, frozen by the Monday close. The practice row
+  // Closed war weeks, frozen by the Monday close. A row
   // (week_start before BATTLE_START) never counts as a war week.
   const { data: rows, error } = await getSupabaseAdmin()
     .from("town_play_weeks")

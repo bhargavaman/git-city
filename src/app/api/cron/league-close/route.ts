@@ -6,7 +6,6 @@ import { closeTownWeek, type TownWeekResult } from "@/lib/towns/weekly";
 import { BATTLE_START, isRivalry } from "@/lib/towns/rivalry";
 import { sendBattleResults, sendBattleStart } from "@/lib/notification-senders/towns-battle";
 import { closePlayWeek } from "@/lib/towns/play";
-import { PRACTICE_START } from "@/lib/towns/play-rules";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -35,8 +34,8 @@ export async function GET(request: NextRequest) {
     // Play points first, in their own try: a failed race close can't lose
     // the play week, and a failed play close can't stop the races.
     let play: { written: boolean; week_start: string } | { skipped: string } | { error: string };
-    if (start.getTime() < PRACTICE_START) {
-      play = { skipped: "before the practice week" };
+    if (start.getTime() < BATTLE_START) {
+      play = { skipped: "before the first week" };
     } else {
       try {
         const r = await closePlayWeek(start);

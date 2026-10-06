@@ -12,19 +12,19 @@ const ctx: CampaignRenderContext = {
 const VARIANTS = ["announce", "repermission"] as const;
 
 describe("towns launch copy", () => {
-  it("names Oct 19 and per-player points in the announce email", () => {
+  it("names Oct 12 and per-player points in the announce email", () => {
     const e = TOWNS_LAUNCH.render("announce", ctx);
-    expect(e.subject).toBe("Claude vs Codex starts Oct 19");
-    expect(e.preheader).toBe("From Mon, Oct 19, everything you do in Git City scores. The side with the most points per player wins the week.");
-    expect(e.text).toContain("From Mon, Oct 19, everything you do in Git City scores. The side with the most points per player wins the week.");
-    expect(e.html).toContain("Battle starts Oct 19.");
+    expect(e.subject).toBe("Claude vs Codex starts Oct 12");
+    expect(e.preheader).toBe("From Mon, Oct 12, everything you do in Git City scores. The side with the most points per player wins the week.");
+    expect(e.text).toContain("From Mon, Oct 12, everything you do in Git City scores. The side with the most points per player wins the week.");
+    expect(e.html).toContain("Battle starts Oct 12.");
   });
 
-  it("names Oct 19 and per-player points in the repermission email", () => {
+  it("names Oct 12 and per-player points in the repermission email", () => {
     const e = TOWNS_LAUNCH.render("repermission", ctx);
-    expect(e.preheader).toBe("Claude vs Codex starts Oct 19. Tell us if you want updates like this.");
-    expect(e.text).toContain("on Oct 19 it starts a weekly war: Claude devs against Codex devs, and the side with the most points per player wins.");
-    expect(e.html).toContain("Battle starts Oct 19.");
+    expect(e.preheader).toBe("Claude vs Codex starts Oct 12. Tell us if you want updates like this.");
+    expect(e.text).toContain("on Oct 12 it starts a weekly war: Claude devs against Codex devs, and the side with the most points per player wins.");
+    expect(e.html).toContain("Battle starts Oct 12.");
   });
 
   it("never says Monday or that coding decides the war", () => {

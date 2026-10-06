@@ -2,9 +2,8 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { fetchWeekContributionDays } from "@/lib/github-api";
 import { isoDay, weekDays } from "@/lib/leagues/scoring";
-import { RIVALRY } from "./rivalry";
+import { BATTLE_START, RIVALRY } from "./rivalry";
 import { SIDES } from "./battle-rules";
-import { PRACTICE_START } from "./play-rules";
 import { sideSizes, type PlayCategories, type PlayDayRow, type PlayPlayer, type PlayWeekRow } from "./play-score";
 import {
   growthBySide,
@@ -237,12 +236,12 @@ export async function getPlayWeekRow(weekStart: string): Promise<PlayWeekRow | n
   return (data as PlayWeekRow | null) ?? null;
 }
 
-/** The newest frozen week from the practice week on (the rules page and the board read it). */
+/** The newest frozen week of the season (the rules page reads it). */
 export async function latestPlayWeekRow(): Promise<PlayWeekRow | null> {
   const { data, error } = await getSupabaseAdmin()
     .from("town_play_weeks")
     .select(WEEK_COLUMNS)
-    .gte("week_start", isoDay(new Date(PRACTICE_START)))
+    .gte("week_start", isoDay(new Date(BATTLE_START)))
     .order("week_start", { ascending: false })
     .limit(1)
     .maybeSingle();

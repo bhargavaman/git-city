@@ -45,9 +45,9 @@ describe("battleWeekNumber", () => {
     expect(battleWeekNumber(second)).toBe(2);
   });
 
-  it("starts on Oct 19: Oct 12-18 is the practice week", () => {
-    expect(battleWeekNumber("2026-10-19")).toBe(1);
-    expect(battleWeekNumber("2026-10-26")).toBe(2);
-    expect(battleWeekNumber("2026-10-12")).toBe(0);
+  it("starts on Oct 12", () => {
+    expect(battleWeekNumber("2026-10-12")).toBe(1);
+    expect(battleWeekNumber("2026-10-19")).toBe(2);
+    expect(battleWeekNumber("2026-10-05")).toBe(0);
   });
 });

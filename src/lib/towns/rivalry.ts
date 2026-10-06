@@ -11,9 +11,9 @@ export const RIVALRY = [
 
 export type RivalSlug = (typeof RIVALRY)[number]["slug"];
 
-/** The first battle week opens Mon Oct 19; Oct 12–18 is a practice week. Until then, sides are picked. */
-export const BATTLE_START = Date.UTC(2026, 9, 19);
-export const BATTLE_START_LABEL = "Mon, Oct 19";
+/** The first battle week opens Mon Oct 12. Until then, sides are picked. */
+export const BATTLE_START = Date.UTC(2026, 9, 12);
+export const BATTLE_START_LABEL = "Mon, Oct 12";
 
 /** "7d 20h" until `target`, "3h 12m" under a day, "" once it passed. */
 export function timeUntil(target: number, now: number): string {

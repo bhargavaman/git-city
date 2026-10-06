@@ -8,7 +8,6 @@ import {
   CAPS,
   FEATURED_ROTATION,
   POINTS,
-  PRACTICE_START,
   PRIZE_CREDITS,
   PRIZE_SPONSOR,
   SEASON_END,
@@ -22,45 +21,38 @@ import {
 import { BATTLE_START } from "./rivalry";
 
 describe("season dates", () => {
-  it("starts the prize weeks Mon Oct 19, after a practice week from Oct 12, for 4 weeks", () => {
-    expect(BATTLE_START).toBe(Date.parse("2026-10-19T00:00:00Z"));
-    expect(PRACTICE_START).toBe(Date.parse("2026-10-12T00:00:00Z"));
-    expect(SEASON_END).toBe(Date.parse("2026-11-16T00:00:00Z"));
+  it("runs 4 prize weeks from Mon Oct 12", () => {
+    expect(BATTLE_START).toBe(Date.parse("2026-10-12T00:00:00Z"));
+    expect(SEASON_END).toBe(Date.parse("2026-11-09T00:00:00Z"));
   });
 });
 
 describe("playPhase", () => {
-  it("is before until the practice week opens", () => {
-    expect(playPhase(Date.parse("2026-10-11T12:00:00Z"))).toBe("before");
+  it("is before until Mon Oct 12", () => {
     expect(playPhase(Date.parse("2026-10-11T23:59:59Z"))).toBe("before");
   });
 
-  it("is practice from Mon Oct 12 to the end of Sun Oct 18", () => {
-    expect(playPhase(Date.parse("2026-10-12T00:00:00Z"))).toBe("practice");
-    expect(playPhase(Date.parse("2026-10-18T23:59:59Z"))).toBe("practice");
+  it("is prize from Mon Oct 12 to the end of Sun Nov 8", () => {
+    expect(playPhase(Date.parse("2026-10-12T00:00:00Z"))).toBe("prize");
+    expect(playPhase(Date.parse("2026-11-08T23:59:59Z"))).toBe("prize");
   });
 
-  it("is prize from Mon Oct 19 to the end of Sun Nov 15", () => {
-    expect(playPhase(Date.parse("2026-10-19T00:00:00Z"))).toBe("prize");
-    expect(playPhase(Date.parse("2026-11-15T23:59:59Z"))).toBe("prize");
-  });
-
-  it("is ended from Mon Nov 16", () => {
-    expect(playPhase(Date.parse("2026-11-16T00:00:00Z"))).toBe("ended");
+  it("is ended from Mon Nov 9", () => {
+    expect(playPhase(Date.parse("2026-11-09T00:00:00Z"))).toBe("ended");
   });
 });
 
 describe("featuredFor", () => {
-  it("has no double activity in the practice week or after the season", () => {
-    expect(featuredFor("2026-10-12")).toBeNull();
-    expect(featuredFor("2026-11-16")).toBeNull();
+  it("has no double activity before or after the season", () => {
+    expect(featuredFor("2026-10-05")).toBeNull();
+    expect(featuredFor("2026-11-09")).toBeNull();
   });
 
   it("follows the published rotation", () => {
-    expect(featuredFor("2026-10-19")).toBe("floors");
-    expect(featuredFor("2026-10-26")).toBe("raids");
-    expect(featuredFor("2026-11-02")).toBe("visits");
-    expect(featuredFor("2026-11-09")).toBe("kudos");
+    expect(featuredFor("2026-10-12")).toBe("floors");
+    expect(featuredFor("2026-10-19")).toBe("raids");
+    expect(featuredFor("2026-10-26")).toBe("visits");
+    expect(featuredFor("2026-11-02")).toBe("kudos");
   });
 
   it("ignores keys that aren't week starts", () => {

@@ -47,7 +47,7 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
 
 /**
  * Why the publish route must not run for `week`, or null when it may.
- * The practice week has no winners, and while a sponsor's winners reply with
+ * A week before the season has no winners, and while a sponsor's winners reply with
  * their account email, the reply has to reach a real inbox.
  */
 export function publishRefusal(
@@ -59,7 +59,7 @@ export function publishRefusal(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(week) || Number.isNaN(noon) || isoDay(weekStart(new Date(noon))) !== week) {
     return { status: 400, error: "week must be a Monday, YYYY-MM-DD" };
   }
-  if (Date.parse(`${week}T00:00:00Z`) < BATTLE_START) return { status: 400, error: "The practice week has no winners" };
+  if (Date.parse(`${week}T00:00:00Z`) < BATTLE_START) return { status: 400, error: "Before the first week" };
   if (sponsor && delivery === "reply" && !replyTo) return { status: 500, error: "Set PRIZE_REPLY_TO" };
   return null;
 }

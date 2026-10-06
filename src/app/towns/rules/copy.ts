@@ -29,7 +29,7 @@ const FEATURED_NAME: Record<FeaturedActivity, string> = {
 };
 
 /** Short dates for the 4 prize weeks, in FEATURED_ROTATION order. */
-const WEEK_DATES = ["Oct 19–25", "Oct 26 – Nov 1", "Nov 2–8", "Nov 9–15"];
+const WEEK_DATES = ["Oct 12–18", "Oct 19–25", "Oct 26 – Nov 1", "Nov 2–8"];
 
 /** A big value over a muted line, for the "This week" tiles. */
 export interface Tile {
@@ -50,16 +50,18 @@ export interface RulesCopy {
 }
 
 function status(v: PlayRulesView): RulesCopy["status"] {
-  if (v.phase === "before") return { text: "Practice starts Mon, Oct 12", endsAt: null };
-  if (v.phase === "practice") return { text: "Practice week", endsAt: null };
+  if (v.phase === "before") return { text: `Starts ${BATTLE_START_LABEL}`, endsAt: null };
   if (v.phase === "prize" && v.week) return { text: `Week ${v.week.number} of ${SEASON_WEEKS} · ends in`, endsAt: v.week.endsAt };
   return { text: "Season over", endsAt: null };
 }
 
 function tiles(v: PlayRulesView): Tile[] | null {
   if (v.phase === "ended") return null;
-  // Before the prize weeks there's no 2× and no bonus yet: one tile says when it all starts.
-  if (v.phase !== "prize") return [{ big: BATTLE_START_LABEL.replace("Mon, ", ""), side: null, sub: "Prizes, 2× and the bonus start" }];
+  // Before the season: week 1's double, so the page already shows what's coming.
+  if (v.phase !== "prize") {
+    const first = Object.values(FEATURED_ROTATION)[0];
+    return [{ big: `2× ${FEATURED_NAME[first]}`, side: null, sub: "Counts double in week 1" }];
+  }
   const double: Tile = v.featured
     ? { big: `2× ${FEATURED_NAME[v.featured]}`, side: null, sub: "Points and cap double" }
     : { big: "No 2×", side: null, sub: "Nothing counts double" };
@@ -117,7 +119,7 @@ export function rulesCopy(v: PlayRulesView): RulesCopy {
     },
     dates: {
       title: "Dates",
-      rows: [{ week: "Practice", dates: "Oct 12–18", double: "–", current: v.phase === "practice" }, ...prizeWeeks],
+      rows: prizeWeeks,
     },
   };
 }

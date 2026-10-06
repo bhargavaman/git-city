@@ -64,7 +64,7 @@ function entry(id: number, side: PlayEntry["side"], total: number): PlayEntry {
 }
 
 const ROW = {
-  week_start: "2026-10-19",
+  week_start: "2026-10-12",
   standings: [entry(1, "claude", 120), entry(2, "codex", 0), entry(3, null, 300)],
   war: {
     claude: { perPlayer: 95, scorers: 3, bonus: 25, score: 120 },
@@ -81,22 +81,22 @@ describe("sendBattleResults", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  it("sends nothing for the practice week", async () => {
-    expect(await sendBattleResults("2026-10-12")).toBe(0);
+  it("sends nothing for a week before the season", async () => {
+    expect(await sendBattleResults("2026-10-05")).toBe(0);
     expect(m.getPlayWeekRow).not.toHaveBeenCalled();
   });
 
   it("sends nothing when the play week didn't freeze", async () => {
     m.getPlayWeekRow.mockResolvedValue(null);
-    expect(await sendBattleResults("2026-10-19")).toBe(0);
+    expect(await sendBattleResults("2026-10-12")).toBe(0);
     expect(m.sendNotification).not.toHaveBeenCalled();
   });
 
   it("emails every player on a side from the frozen row, nobody outside the war", async () => {
     m.getPlayWeekRow.mockResolvedValue(ROW);
-    expect(await sendBattleResults("2026-10-19")).toBe(2);
+    expect(await sendBattleResults("2026-10-12")).toBe(2);
     const sent = m.sendNotification.mock.calls.map((c) => c[0] as NotificationPayload);
-    expect(sent.map((p) => p.dedupKey)).toEqual(["battle_result:1:2026-10-19", "battle_result:2:2026-10-19"]);
+    expect(sent.map((p) => p.dedupKey)).toEqual(["battle_result:1:2026-10-12", "battle_result:2:2026-10-12"]);
     expect(sent.map((p) => p.title)).toEqual(["Claude won week 1", "Claude won week 1"]);
     expect(sent.map((p) => p.body)).toEqual(["You scored 120 points for Claude.", "You didn't score for Codex that week."]);
   });

@@ -82,15 +82,20 @@ export function boardWeek(prev: EndedWeek | null, phase: PlayPhase): { bonus: Si
 }
 
 export function boardHeading(phase: PlayPhase): string {
-  return phase === "practice" ? "Practice week" : "This week";
+  return phase === "ended" ? "Last week" : "This week";
 }
 
 /** The top 10 card's note: what the ranking is worth right now. */
-export function prizeNote(phase: PlayPhase, sponsor: "Firecrawl" | null = PRIZE_SPONSOR): string {
-  if (phase === "before" || phase === "practice") return `Prizes start ${BATTLE_START_LABEL}`;
+export function prizeNote(phase: PlayPhase, sponsor: "Firecrawl" | null = PRIZE_SPONSOR): string | null {
+  if (phase === "before") return null;
   if (phase === "ended") return "Season over";
   if (sponsor) return `${PRIZE_CREDITS.toLocaleString("en-US")} ${sponsor} credits each`;
   return "Named every Monday";
+}
+
+/** The top 10 card when it has no rows: before the season, when points start; then, nobody yet. */
+export function emptyLine(phase: PlayPhase): string {
+  return phase === "before" ? `Points count from ${BATTLE_START_LABEL}` : "Nobody scored yet";
 }
 
 export function winnersLine(w: LastWinners): string {

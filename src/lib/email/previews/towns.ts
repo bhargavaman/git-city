@@ -8,6 +8,7 @@ import { renderJoinRequestEmail, renderRequestApprovedEmail } from "../../notifi
 import { renderLeagueWeeklyEmail, type LeagueWeeklyEmailData } from "../../notification-senders/league-weekly";
 import { renderGiftSentEmail, renderPurchaseEmail } from "../../notification-senders/purchase";
 import { renderBattleResultEmail, renderBattleStartEmail, type BattleResultEmailData } from "../../notification-senders/towns-battle";
+import { renderPrizeWinnerEmail } from "../../notification-senders/towns-prize";
 import { EMAIL_BASE_URL } from "../components";
 import { PREVIEW_LINKS, TRANSACTIONAL_PREVIEW_LINKS, type EmailPreviews } from "./types";
 
@@ -36,7 +37,7 @@ const BATTLE: BattleResultEmailData = {
   claude: 84,
   codex: 61,
   side: "codex",
-  mine: 42,
+  mine: 412,
   heroUrl: `${EMAIL_BASE_URL}/towns/battle-image?sample=1`,
 };
 
@@ -46,6 +47,9 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   "battle-result-lost": () => renderBattleResultEmail(BATTLE, PREVIEW_LINKS),
   "battle-result-won": () => renderBattleResultEmail({ ...BATTLE, side: "claude", mine: 131 }, PREVIEW_LINKS),
   "battle-result-tie": () => renderBattleResultEmail({ ...BATTLE, winner: null, codex: 84, mine: 0 }, PREVIEW_LINKS),
+  // forceSend: the engine sends these without an unsubscribe link.
+  "prize-winner": () => renderPrizeWinnerEmail({ week: 1, sponsor: "Firecrawl", delivery: "reply" }, TRANSACTIONAL_PREVIEW_LINKS),
+  "prize-winner-glory": () => renderPrizeWinnerEmail({ week: 1, sponsor: null, delivery: "reply" }, TRANSACTIONAL_PREVIEW_LINKS),
   "town-joined": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: true }, PREVIEW_LINKS),
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),
   "town-overtaken": () =>

@@ -1,33 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { townScore } from "@/lib/leagues/scoring";
-import { battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord, weekWinner } from "./battle-rules";
+import { isoDay } from "@/lib/leagues/scoring";
+import { battlePhase, battleWeekNumber, dayWinners, finishedDays, seriesRecord } from "./battle-rules";
 import { BATTLE_START } from "./rivalry";
 
 describe("battlePhase", () => {
   it("picks sides until the first battle Monday", () => {
     expect(battlePhase(BATTLE_START - 1)).toBe("pick");
     expect(battlePhase(BATTLE_START)).toBe("live");
-  });
-});
-
-describe("weekWinner", () => {
-  it("goes to the higher per dev", () => {
-    expect(weekWinner({ perDev: 84, coding: 40 }, { perDev: 61, coding: 90 })).toBe("claude");
-    expect(weekWinner({ perDev: 12, coding: 3 }, { perDev: 13, coding: 3 })).toBe("codex");
-  });
-
-  it("is nobody's on a tie", () => {
-    expect(weekWinner({ perDev: 50, coding: 3 }, { perDev: 50, coding: 9 })).toBeNull();
-  });
-
-  it("can't go to a side under 3 coders", () => {
-    // Two huge coders don't make a score; the other side wins by default.
-    const small = townScore([900, 800]);
-    const big = townScore([5, 4, 3]);
-    expect(small).toBeNull();
-    expect(weekWinner(small, big)).toBe("codex");
-    expect(weekWinner(big, small)).toBe("claude");
-    expect(weekWinner(null, null)).toBeNull();
   });
 });
 
@@ -60,7 +39,15 @@ describe("seriesRecord", () => {
 
 describe("battleWeekNumber", () => {
   it("counts from the first battle Monday", () => {
+    const first = isoDay(new Date(BATTLE_START));
+    const second = isoDay(new Date(BATTLE_START + 7 * 86_400_000));
+    expect(battleWeekNumber(first)).toBe(1);
+    expect(battleWeekNumber(second)).toBe(2);
+  });
+
+  it("starts on Oct 12", () => {
     expect(battleWeekNumber("2026-10-12")).toBe(1);
     expect(battleWeekNumber("2026-10-19")).toBe(2);
+    expect(battleWeekNumber("2026-10-05")).toBe(0);
   });
 });

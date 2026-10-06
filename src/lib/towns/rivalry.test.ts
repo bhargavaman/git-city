@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BATTLE_START, isRivalry, rivalOf, sideSwitch, timeUntil } from "./rivalry";
+import { BATTLE_START, BATTLE_START_LABEL, isRivalry, rivalOf, sideSwitch, timeUntil } from "./rivalry";
 
 // Sunday 2026-09-27 12:00 UTC; its week started Monday 2026-09-21.
 const SUNDAY = new Date("2026-09-27T12:00:00Z");
@@ -69,5 +69,13 @@ describe("timeUntil", () => {
   });
   it("is empty once it started", () => {
     expect(timeUntil(BATTLE_START, BATTLE_START)).toBe("");
+  });
+});
+
+describe("BATTLE_START", () => {
+  it("opens the first battle week on Mon Oct 12", () => {
+    expect(BATTLE_START).toBe(Date.UTC(2026, 9, 12));
+    expect(new Date(BATTLE_START).getUTCDay()).toBe(1);
+    expect(BATTLE_START_LABEL).toBe("Mon, Oct 12");
   });
 });

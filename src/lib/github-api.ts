@@ -325,15 +325,17 @@ export async function fetchCurrentYearBatch(logins: string[]): Promise<{
 
 /**
  * Batched per-day contributions for one league week (Monday 00:00 UTC →
- * following Monday), 20 logins per request. Logins GitHub couldn't resolve
- * are absent from the result. A failed request returns an empty list so the
- * caller keeps the last values instead of zeroing a score.
+ * following Monday), 20 logins per request, plus each account's GitHub
+ * `createdAt` (the play close fills a null developers.account_created_at
+ * from it). Logins GitHub couldn't resolve are absent from the result. A
+ * failed request returns an empty list so the caller keeps the last values
+ * instead of zeroing a score.
  */
 export async function fetchWeekContributionDays(
   logins: string[],
   weekStart: Date,
 ): Promise<{
-  results: { login: string; days: { date: string; count: number }[] }[];
+  results: { login: string; days: { date: string; count: number }[]; createdAt: string | null }[];
   rateLimit: { remaining: number; resetAt: string } | null;
 }> {
   const token = process.env.GITHUB_TOKEN;
@@ -348,7 +350,7 @@ export async function fetchWeekContributionDays(
   const blocks = valid
     .map(
       (login, i) =>
-        `u${i}: user(login: ${JSON.stringify(login)}) { w: contributionsCollection(from:"${from}", to:"${to}"){contributionCalendar{weeks{contributionDays{date contributionCount}}}} }`,
+        `u${i}: user(login: ${JSON.stringify(login)}) { createdAt w: contributionsCollection(from:"${from}", to:"${to}"){contributionCalendar{weeks{contributionDays{date contributionCount}}}} }`,
     )
     .join("\n");
   const query = `query {\n${blocks}\n  rateLimit { remaining resetAt }\n}`;
@@ -365,7 +367,7 @@ export async function fetchWeekContributionDays(
     const data = json?.data;
     if (!data) return empty;
 
-    const results: { login: string; days: { date: string; count: number }[] }[] = [];
+    const results: { login: string; days: { date: string; count: number }[]; createdAt: string | null }[] = [];
     for (let i = 0; i < valid.length; i++) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = data[`u${i}`] as any;
@@ -376,7 +378,7 @@ export async function fetchWeekContributionDays(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (w.contributionDays ?? []).map((d: any) => ({ date: String(d.date), count: Number(d.contributionCount) || 0 })),
       );
-      results.push({ login: valid[i], days });
+      results.push({ login: valid[i], days, createdAt: u.createdAt ? String(u.createdAt) : null });
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rl = data.rateLimit as any;

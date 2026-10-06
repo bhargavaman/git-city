@@ -1,11 +1,11 @@
 import { BATTLE_START } from "./rivalry";
-import type { TownScore } from "@/lib/leagues/scoring";
 
 // ─── Claude vs Codex battle rules (pure) ────────────────────
-// The week is won on per dev (competition spec): the side whose members who
-// coded average more contributions. A side under 3 coders has no score and
-// can't win. Days are the week's running story: each finished day goes to the
-// side with the higher per-day average. Ties go to nobody.
+// The week is won on play points per player (play-score.ts): the side whose
+// counted players who scored average more, plus its team categories. A side
+// under 3 scorers has no score and can't win. Days are the week's running
+// story: each finished day goes to the side with the higher per-day average.
+// Ties go to nobody.
 
 export type Side = "claude" | "codex";
 
@@ -15,15 +15,6 @@ export const SIDES: readonly [Side, Side] = ["claude", "codex"];
 /** Before BATTLE_START sides are picked; from it on, weeks count. */
 export function battlePhase(now: number): "pick" | "live" {
   return now < BATTLE_START ? "pick" : "live";
-}
-
-/** The week's winner on per dev, or null (tie, or neither side has 3 coders). */
-export function weekWinner(claude: TownScore | null, codex: TownScore | null): Side | null {
-  if (!claude && !codex) return null;
-  if (!codex) return "claude";
-  if (!claude) return "codex";
-  if (claude.perDev === codex.perDev) return null;
-  return claude.perDev > codex.perDev ? "claude" : "codex";
 }
 
 /**

@@ -148,3 +148,8 @@ export function button(text: string, url: string): string {
   </td></tr>
 </table>`;
 }
+
+/** A quiet text link under the button, e.g. "How scoring and checks work". */
+export function textLink(text: string, url: string): string {
+  return gmailSafe(`<p style="margin:20px 0 0; font-family:${FONT}; font-size:14px; line-height:1.6; color:${COLORS.muted};"><a href="${escapeHtml(url)}" style="color:${COLORS.lime}; text-decoration:underline;">${escapeHtml(text)}</a></p>`);
+}

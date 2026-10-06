@@ -9,6 +9,7 @@ import { isoDay, weekContributions, weekStart } from "@/lib/leagues/scoring";
 import { leagueBuildings, scaleTownHeights } from "./buildings";
 import { getCachedCity } from "./service";
 import { SMASH, toTarget, type DamageEntry, type SmashTarget } from "./smash";
+import { cleanFloors, dropOwnTown, isUuid, type FloorEntry } from "./smash-floors";
 
 // ─── Smash (server) ─────────────────────────────────────────
 // The town's buildings as smash targets (the same formulas the town page
@@ -168,6 +169,10 @@ export interface SmashSave {
   at: number;
   rows: SmashSaveRow[];
   demolished: SmashFall[];
+  /** Floors knocked down outside each player's town, per player per UTC day (party/smash.ts). */
+  floors?: FloorEntry[];
+  /** The batch id those floors go under. A resent batch is a no-op in add_town_floors. */
+  floorsBatch?: string;
 }
 
 const isId = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n > 0;
@@ -192,7 +197,14 @@ export function verifySmashSave(slug: string, body: string, signature: string | 
   const falls = save.demolished.filter(
     (d) => isLogin(d?.victim) && isLogin(d.attacker) && d.victim !== d.attacker && isId(d.attackerId) && typeof d.at === "number" && Math.abs(now - d.at) < 86_400_000,
   );
-  return { at: save.at, rows: save.rows.filter((r) => isLogin(r?.login)), demolished: falls };
+  // Floors never fail a save: bad entries are dropped, and a bad batch id skips recordFloors.
+  return {
+    at: save.at,
+    rows: save.rows.filter((r) => isLogin(r?.login)),
+    demolished: falls,
+    floors: cleanFloors(save.floors, now),
+    floorsBatch: isUuid(save.floorsBatch) ? save.floorsBatch : undefined,
+  };
 }
 
 /** Writes the room's damage: damaged (or still shielded) buildings upserted, healed ones deleted. Throws on a failed write (the room retries). */
@@ -248,6 +260,21 @@ export async function saveDamage(leagueId: string, town: SmashTown, save: SmashS
     const { error } = await sb.from("town_building_damage").delete().eq("league_id", leagueId).in("developer_id", healed);
     if (error) throw error;
   }
+}
+
+/**
+ * Adds the save's floors to town_play_days under its batch id, so a resent
+ * batch adds nothing. Entries for this town's own devs are dropped (they
+ * score 0). Throws on a failed write (the room resends the same batch).
+ * Returns the floors sent.
+ */
+export async function recordFloors(town: SmashTown, save: SmashSave): Promise<number> {
+  if (!save.floorsBatch || !save.floors?.length) return 0;
+  const entries = dropOwnTown(save.floors, town.devIds);
+  if (entries.length === 0) return 0;
+  const { error } = await getSupabaseAdmin().rpc("add_town_floors", { p_batch: save.floorsBatch, p: entries });
+  if (error) throw error;
+  return entries.reduce((sum, e) => sum + e.n, 0);
 }
 
 export interface RecordedFall {

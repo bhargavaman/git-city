@@ -8,12 +8,14 @@ import { getCachedCity } from "@/lib/league-city/service";
 import { getDiscover } from "@/lib/towns/discover";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import { getBattleState } from "@/lib/towns/battle";
+import { getPlayBoard } from "@/lib/towns/play";
+import ThisWeek from "@/components/towns/ThisWeek";
 import RivalryPoster, { type RivalSide } from "@/components/towns/RivalryPoster";
 
 export const dynamic = "force-dynamic";
 
 const TITLE = "Claude vs Codex - Git City";
-const DESCRIPTION = "Pick your side. Every week, the side whose devs code more wins.";
+const DESCRIPTION = "Pick your side. Every week, the side with the most points per player wins.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -29,12 +31,16 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
   // Old "create" links (emails, sign-in returns) open the new town screen.
   if (create === "1") redirect("/towns/new");
 
-  const [viewer, discover, norms, battle] = await Promise.all([
+  const [viewer, discover, norms, battle, board] = await Promise.all([
     getViewer(),
     getDiscover(null),
     getCityNorms(),
     getBattleState().catch((err) => {
       console.error("[towns] battle failed:", err);
+      return null;
+    }),
+    getPlayBoard().catch((err) => {
+      console.error("[towns] play board failed:", err);
       return null;
     }),
   ]);
@@ -52,6 +58,7 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
       battle={battle}
       pickOnLoad={RIVALRY.some((r) => r.slug === pick) ? (pick as string) : null}
       others={others}
+      thisWeek={board ? <ThisWeek board={board} /> : null}
     />
   );
 }

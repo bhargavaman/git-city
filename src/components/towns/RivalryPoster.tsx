@@ -18,8 +18,6 @@ import { GridTownCard } from "./TownCard";
 import { useDesktop } from "./useDesktop";
 import { LiveBadge, useTownsLive } from "./live";
 import { sortByLive, type TownLive } from "@/lib/towns/live";
-import type { FeaturedActivity } from "@/lib/towns/play-rules";
-import ScoringTable from "./ScoringTable";
 
 const TownHero = dynamic(() => import("./TownHero"), { ssr: false });
 
@@ -49,8 +47,7 @@ export default function RivalryPoster({
   battle,
   pickOnLoad,
   others,
-  players,
-  featured,
+  thisWeek,
 }: {
   sides: Pair;
   /** Every other town, secondary, under the rivalry. */
@@ -63,10 +60,8 @@ export default function RivalryPoster({
   battle: BattleState | null;
   /** Back from sign-in with ?pick=<slug>: finish that pick. */
   pickOnLoad: string | null;
-  /** "Players this week", rendered on the server; null when the board failed to load. */
-  players: ReactNode;
-  /** The week's 2× activity, for the scoring table. */
-  featured: FeaturedActivity | null;
+  /** "This week" (how to score + top 10), rendered on the server; null when the board failed to load. */
+  thisWeek: ReactNode;
 }) {
   const router = useRouter();
   const b = battle?.phase === "live" ? battle : null;
@@ -203,13 +198,9 @@ export default function RivalryPoster({
           {!result && <p className="mt-3 text-center text-sm text-cream sm:text-base">{lead}</p>}
           {b && <DaySquares battle={b} sides={sides} />}
         </div>
-
-        <div className="mx-auto max-w-6xl px-4 pt-10 sm:px-6">
-          <ScoringTable featured={featured} />
-        </div>
       </section>
 
-      {players}
+      {thisWeek}
       {b ? <TopPlayers battle={b} sides={sides} /> : <WhoPicked sides={sides} />}
       <OtherTowns towns={sortByLive(others, live)} live={live} />
     </main>

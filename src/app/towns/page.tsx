@@ -9,7 +9,7 @@ import { getDiscover } from "@/lib/towns/discover";
 import { RIVALRY } from "@/lib/towns/rivalry";
 import { getBattleState } from "@/lib/towns/battle";
 import { getPlayBoard } from "@/lib/towns/play";
-import PlayersThisWeek from "@/components/towns/PlayersThisWeek";
+import ThisWeek from "@/components/towns/ThisWeek";
 import RivalryPoster, { type RivalSide } from "@/components/towns/RivalryPoster";
 
 export const dynamic = "force-dynamic";
@@ -58,8 +58,7 @@ export default async function TownsPage({ searchParams }: { searchParams: Promis
       battle={battle}
       pickOnLoad={RIVALRY.some((r) => r.slug === pick) ? (pick as string) : null}
       others={others}
-      players={board ? <PlayersThisWeek board={board} /> : null}
-      featured={board?.featured ?? null}
+      thisWeek={board ? <ThisWeek board={board} /> : null}
     />
   );
 }

@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CAPS } from "../towns/play-rules";
-import { FLOOR_DAY_CAP, FLOOR_ENTRY_MAX, FloorTally, FloorsToday, JumpWatch, MAX_SEEN, cleanFloors, dropOwnTown, impliedJump, isUuid, seenHash } from "./smash-floors";
+import { FLOOR_DAY_CAP, FLOOR_ENTRY_MAX, FloorParts, FloorTally, FloorsToday, JumpWatch, MAX_SEEN, cleanFloors, dropOwnTown, impliedJump, isUuid, seenHash } from "./smash-floors";
 
 const T = Date.UTC(2026, 9, 12, 15, 0, 0); // Mon Oct 12, 15:00 UTC
 const ids = () => {
@@ -275,5 +275,32 @@ describe("FloorsToday", () => {
     f.seed("ana", 10, T);
     expect(f.today("ana", T)).toBe(30);
     expect(f.add("ana", 5, Date.UTC(2026, 9, 13, 0, 0, 1))).toEqual({ n: 5, today: 5 });
+  });
+});
+
+describe("FloorParts", () => {
+  it("counts a floor once every column's block is gone", () => {
+    const p = new FloorParts();
+    expect(p.add("ana", "bob", 5, 12)).toBe(0);
+    expect(p.add("ana", "bob", 7, 12)).toBe(1);
+    expect(p.add("ana", "bob", 30, 12)).toBe(2);
+    expect(p.add("ana", "bob", 6, 12)).toBe(1); // 6 left from before + 6
+  });
+
+  it("makes a whole 15x12 building worth 15 floors", () => {
+    const p = new FloorParts();
+    let floors = 0;
+    for (let i = 0; i < 60; i++) floors += p.add("ana", "bob", 3, 12);
+    expect(floors).toBe(15);
+  });
+
+  it("keeps buildings and players apart, and ignores junk", () => {
+    const p = new FloorParts();
+    expect(p.add("ana", "bob", 6, 12)).toBe(0);
+    expect(p.add("ana", "cid", 6, 12)).toBe(0);
+    expect(p.add("eve", "bob", 6, 12)).toBe(0);
+    expect(p.add("ana", "bob", 6, 12)).toBe(1);
+    expect(p.add("ana", "bob", 0, 12)).toBe(0);
+    expect(p.add("ana", "bob", 5, 0)).toBe(0);
   });
 });

@@ -125,6 +125,29 @@ export class JumpWatch {
   }
 }
 
+/**
+ * Whole floors out of the blocks a player takes off a building. A building is
+ * a grid of columns, each with its floors; a hit removes blocks (one floor of
+ * one column). One floor scores once every column's worth of blocks is gone,
+ * so a 15-floor building is worth 15 whatever its width. The rest carries
+ * over to the next hit on the same building.
+ */
+export class FloorParts {
+  private left = new Map<string, number>();
+
+  /** `blocks` taken off a building with `cols` columns: the whole floors they complete. */
+  add(login: string, building: string, blocks: number, cols: number): number {
+    if (!(blocks > 0) || !(cols > 0)) return 0;
+    const key = `${login}|${building}`;
+    const total = (this.left.get(key) ?? 0) + blocks;
+    const floors = Math.floor(total / cols);
+    const rest = total - floors * cols;
+    if (rest > 0) this.left.set(key, rest);
+    else this.left.delete(key);
+    return floors;
+  }
+}
+
 /** Floors a player scores per UTC day (CAPS.floors in towns/play-rules; play-rules.test checks they match). */
 export const FLOOR_DAY_CAP = 200;
 

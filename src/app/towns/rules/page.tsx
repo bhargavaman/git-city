@@ -90,11 +90,17 @@ export default async function TownsRulesPage() {
             >
               {t.prize.bonus.text}
             </p>
-            <ul className="mt-auto flex flex-col gap-1.5 pt-4 text-xs text-muted normal-case">
-              {t.prize.who.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+            <div className="mt-auto pt-5">
+              <p className="border-t-[3px] border-border pt-4 text-xs text-muted">{t.prize.whoTitle}</p>
+              <dl className="mt-3 flex flex-col gap-2.5 text-xs">
+                {t.prize.who.map((w) => (
+                  <div key={w.term} className="flex items-baseline gap-3">
+                    <dt className="w-20 shrink-0 text-muted">{w.term}</dt>
+                    <dd className="min-w-0 text-cream normal-case">{w.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           </Card>
         </div>
 

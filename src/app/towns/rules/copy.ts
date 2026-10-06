@@ -37,7 +37,7 @@ export interface RulesCopy {
   status: { text: string; endsAt: number | null };
   play: { title: string; rows: ScoringRow[]; note: string };
   war: { title: string; lines: string[] };
-  prize: { title: string; big: string; sub: string; bonus: { side: Side | null; text: string }; who: string[] };
+  prize: { title: string; big: string; sub: string; bonus: { side: Side | null; text: string }; whoTitle: string; who: { term: string; text: string }[] };
   weeks: { label: string; dates: string; double: string; current: boolean }[];
   fair: { line: string; report: { label: string; href: string } };
 }
@@ -56,8 +56,12 @@ function bonus(v: PlayRulesView): RulesCopy["prize"]["bonus"] {
 }
 
 export function rulesCopy(v: PlayRulesView): RulesCopy {
-  const who = [`GitHub account before ${ACCOUNT_CUTOFF_LABEL}`, "Building claimed before the week", "1+ point not from coding"];
-  if (v.onePrizePerSeason) who.push("One prize per player");
+  const who = [
+    { term: "Account", text: `before ${ACCOUNT_CUTOFF_LABEL}` },
+    { term: "Building", text: "claimed before the week" },
+    { term: "Points", text: "1+ not from coding" },
+  ];
+  if (v.onePrizePerSeason) who.push({ term: "Prizes", text: "one per player" });
 
   return {
     status: status(v),
@@ -76,6 +80,7 @@ export function rulesCopy(v: PlayRulesView): RulesCopy {
       big: `Top ${PRIZE_WINNERS}`,
       sub: v.sponsor ? `${PRIZE_CREDITS.toLocaleString("en-US")} ${v.sponsor} credits each` : "every week",
       bonus: bonus(v),
+      whoTitle: "Who can win",
       who,
     },
     weeks: Object.values(FEATURED_ROTATION).map((a, i) => ({

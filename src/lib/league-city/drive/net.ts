@@ -100,7 +100,9 @@ export type ServerMsg =
   /** Someone's quick reaction (not echoed to the sender). */
   | { t: "emote"; from: string; e: number }
   /** Smash: whether your `auth` lets you break this town's buildings (signed in with one), and whether you live here. */
-  | { t: "smash_me"; can: boolean; home: boolean; login: string | null }
+  | { t: "smash_me"; can: boolean; home: boolean; login: string | null; floors?: number }
+  /** Smash: floors you just took off `b` that score (`n`), and your floors today (UTC), capped. */
+  | { t: "floors"; b: string; n: number; today: number }
   /** Smash: a building's floors per column now; `by` took its last floor; `s` its shield's end (epoch ms). */
   | { t: "damage"; b: string; r: number[]; by?: string | null; s?: number }
   /** Smash: every damaged building [login, rows, by, shield end], when the room loads or you arrive. */

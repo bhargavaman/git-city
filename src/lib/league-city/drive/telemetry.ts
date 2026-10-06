@@ -20,6 +20,10 @@ export interface DriveTelemetry {
   /** Smash: parked against your broken building, its floors standing and in all (0 = not rebuilding). */
   rebuildFloors: number;
   rebuildOf: number;
+  /** Smash: your floors today (UTC) as the room counts them; null until it says you may smash. */
+  floorsToday: number | null;
+  /** Smash: when your floors hit the day's cap (performance.now ms, 0 never). */
+  floorsMaxedAt: number;
   /** The minimap's feed (city units), written every frame by the drive world. */
   radar: RadarFeed;
 }
@@ -42,7 +46,7 @@ export interface RadarFeed {
 }
 
 export function createTelemetry(): DriveTelemetry {
-  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, shieldHintAt: 0, shieldHours: 0, rebuildFloors: 0, rebuildOf: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null } };
+  return { speed: 0, boosting: false, drifting: false, near: null, held: null, gotAt: 0, sideHintAt: 0, shieldHintAt: 0, shieldHours: 0, rebuildFloors: 0, rebuildOf: 0, floorsToday: null, floorsMaxedAt: 0, radar: { x: 0, z: 0, heading: 0, cars: [], crown: null } };
 }
 
 export type DriveCameraMode = "chase" | "top";

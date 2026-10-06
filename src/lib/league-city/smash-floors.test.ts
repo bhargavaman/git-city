@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { FLOOR_ENTRY_MAX, FloorTally, JumpWatch, MAX_SEEN, cleanFloors, dropOwnTown, impliedJump, isUuid, seenHash } from "./smash-floors";
+import { CAPS } from "../towns/play-rules";
+import { FLOOR_DAY_CAP, FLOOR_ENTRY_MAX, FloorTally, FloorsToday, JumpWatch, MAX_SEEN, cleanFloors, dropOwnTown, impliedJump, isUuid, seenHash } from "./smash-floors";
 
 const T = Date.UTC(2026, 9, 12, 15, 0, 0); // Mon Oct 12, 15:00 UTC
 const ids = () => {
@@ -252,5 +253,27 @@ describe("isUuid", () => {
     expect(isUuid(undefined)).toBe(false);
     expect(isUuid(123)).toBe(false);
     expect(isUuid("3f2b8c1e-9d4a-4f6b-8a2c-1e5d7b9f0a1")).toBe(false);
+  });
+});
+
+describe("FloorsToday", () => {
+  it("matches the floors cap in the play rules", () => {
+    expect(FLOOR_DAY_CAP).toBe(CAPS.floors);
+  });
+
+  it("starts from the site's count and stops scoring at the cap", () => {
+    const f = new FloorsToday();
+    f.seed("ana", 190, T);
+    expect(f.add("ana", 6, T)).toEqual({ n: 6, today: 196 });
+    expect(f.add("ana", 6, T)).toEqual({ n: 4, today: 200 });
+    expect(f.add("ana", 3, T)).toEqual({ n: 0, today: 200 });
+  });
+
+  it("never lowers a count with an older seed, and resets on a new UTC day", () => {
+    const f = new FloorsToday();
+    f.add("ana", 30, T);
+    f.seed("ana", 10, T);
+    expect(f.today("ana", T)).toBe(30);
+    expect(f.add("ana", 5, Date.UTC(2026, 9, 13, 0, 0, 1))).toEqual({ n: 5, today: 5 });
   });
 });

@@ -117,6 +117,8 @@ export interface SmashViewer {
   canSmash: boolean;
   /** An active member of this town (their building here is theirs to rebuild). */
   home: boolean;
+  /** Floors knocked down outside their towns today (UTC), as stored; the HUD counts from here. */
+  floorsToday: number;
 }
 
 /** The dev behind a Supabase access token, and whether they live in `slug`. */
@@ -132,15 +134,23 @@ export async function smashViewer(token: string, slug: string): Promise<SmashVie
     .limit(1)
     .maybeSingle<{ id: number; github_login: string }>();
   if (!dev) return null;
-  const { data: here } = await sb
-    .from("league_members")
-    .select("leagues!inner(slug)")
-    .eq("developer_id", dev.id)
-    .eq("status", "active")
-    .eq("leagues.slug", slug)
-    .limit(1)
-    .returns<{ leagues: { slug: string } }[]>();
-  return { login: dev.github_login.toLowerCase(), devId: dev.id, canSmash: true, home: (here ?? []).length > 0 };
+  const [{ data: here }, { data: today }] = await Promise.all([
+    sb
+      .from("league_members")
+      .select("leagues!inner(slug)")
+      .eq("developer_id", dev.id)
+      .eq("status", "active")
+      .eq("leagues.slug", slug)
+      .limit(1)
+      .returns<{ leagues: { slug: string } }[]>(),
+    sb
+      .from("town_play_days")
+      .select("floors")
+      .eq("developer_id", dev.id)
+      .eq("day", isoDay(new Date()))
+      .maybeSingle<{ floors: number }>(),
+  ]);
+  return { login: dev.github_login.toLowerCase(), devId: dev.id, canSmash: true, home: (here ?? []).length > 0, floorsToday: today?.floors ?? 0 };
 }
 
 // ─── Signed saves from the drive room ───────────────────────

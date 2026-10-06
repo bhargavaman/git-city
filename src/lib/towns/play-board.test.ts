@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACTIVITIES, capFor, pointsFor, PRIZE_SPONSOR, TEAM_BONUS } from "./play-rules";
-import { boardHeading, boardWeek, bonusLine, emptyLine, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "./play-board";
+import { boardHeading, boardWeek, bonusLine, emptyLine, floorScoring, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "./play-board";
 
 describe("play-rules numbers this board relies on", () => {
   it("doubles points and cap for the featured activity only", () => {
@@ -106,5 +106,13 @@ describe("boardWeek", () => {
   it("shows winners only once the week is published", () => {
     expect(boardWeek({ ...ended, published_at: null }, "prize").lastWinners).toBeNull();
     expect(boardWeek({ ...ended, winners: null }, "prize").lastWinners).toBeNull();
+  });
+});
+
+describe("floorScoring", () => {
+  it("is 1 point a floor up to 200, doubled in the floors week", () => {
+    expect(floorScoring(Date.UTC(2026, 9, 6))).toEqual({ per: 1, cap: 200 });
+    expect(floorScoring(Date.UTC(2026, 9, 14))).toEqual({ per: 2, cap: 400 });
+    expect(floorScoring(Date.UTC(2026, 9, 21))).toEqual({ per: 1, cap: 200 });
   });
 });

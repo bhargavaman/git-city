@@ -17,7 +17,7 @@ import {
   toFootprint,
   type SmashMsg,
 } from "../src/lib/league-city/smash-net";
-import { FloorTally } from "../src/lib/league-city/smash-floors";
+import { FloorTally, FloorsToday } from "../src/lib/league-city/smash-floors";
 
 // ─── Smash (drive room side) ────────────────────────────────
 // The authority on a town's floors. Loads the town's buildings and saved
@@ -70,6 +70,8 @@ export class SmashRoom {
   private blasts = new Map<number, Blast>();
   /** Floors that score (outside the driver's own town), saved with the damage. */
   private tally = new FloorTally();
+  /** Each driver's floors today, for the "+N" and the HUD counter. */
+  private floorsToday = new FloorsToday();
   /** Device hashes that arrived before the driver's hello. */
   private early = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -162,12 +164,14 @@ export class SmashRoom {
     try {
       const res = await fetch(`${site}/api/towns/${encodeURIComponent(this.room.id)}/smash/me`, { headers: { authorization: `Bearer ${token}` } });
       if (!res.ok) return;
-      const me = (await res.json()) as { login: string; devId: number; canSmash: boolean; home: boolean };
+      const me = (await res.json()) as { login: string; devId: number; canSmash: boolean; home: boolean; floorsToday?: number };
       d.login = me.login.toLowerCase();
       d.canSmash = me.canSmash === true && Number.isSafeInteger(me.devId) && me.devId > 0;
       d.home = me.home === true;
       if (d.canSmash) this.ids.set(d.login, me.devId);
-      conn.send(JSON.stringify({ t: "smash_me", can: d.canSmash, home: me.home === true, login: d.login } satisfies ServerMsg));
+      this.floorsToday.seed(d.login, Number(me.floorsToday) || 0, Date.now());
+      const floors = this.floorsToday.today(d.login, Date.now());
+      conn.send(JSON.stringify({ t: "smash_me", can: d.canSmash, home: me.home === true, login: d.login, floors } satisfies ServerMsg));
     } catch (err) {
       console.error("[smash] auth", err);
     } finally {
@@ -236,6 +240,9 @@ export class SmashRoom {
     if (took > 0 && !d.home && attackerId !== undefined) {
       this.tally.add(d.login, attackerId, m.b, took, now);
       if (d.seen) this.tally.see(d.login, attackerId, d.seen, now);
+      // Tell the driver what scored, for the "+N" over the building and the HUD counter.
+      const { n: scored, today } = this.floorsToday.add(d.login, took, now);
+      this.room.getConnection(id)?.send(JSON.stringify({ t: "floors", b: m.b, n: scored, today } satisfies ServerMsg));
     }
     if (down && attackerId !== undefined) {
       this.fallen.push({ victim: m.b, attacker: d.login, attackerId, at: now });

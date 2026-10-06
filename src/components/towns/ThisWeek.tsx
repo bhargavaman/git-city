@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Avatar } from "@/components/league/hud/shared";
 import type { PlayBoard } from "@/lib/towns/play";
 import { PRIZE_WINNERS, RULES_PATH } from "@/lib/towns/play-rules";
-import { boardHeading, bonusLine, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "@/lib/towns/play-board";
+import { boardHeading, bonusLine, prizeNote, sideColor, winnersLine } from "@/lib/towns/play-board";
+import ScoreCard from "./ScoreCard";
 
 // Under the war bar: how to score on the left, the week's top 10 on the right
 // (stacked on phones). The hero already says how a side wins; this section
@@ -21,31 +22,7 @@ export default function ThisWeek({ board }: { board: PlayBoard }) {
       </div>
 
       <div className="mt-2 grid gap-3 md:grid-cols-2 md:gap-6">
-        <div className="border-[3px] border-border bg-bg-card p-3 sm:p-4">
-          <p className="text-xs text-muted">How to score</p>
-          <ul className="mt-3 flex flex-col gap-2.5" aria-label="Points">
-            {scoringRows(board.featured).map((r) => (
-              <li key={r.activity} className="flex items-baseline gap-3 text-xs">
-                <span className="min-w-0 flex-1 text-cream normal-case">
-                  {r.label}
-                  {r.doubled && <span className="ml-2 text-lime">2×</span>}
-                </span>
-                <span className={`w-14 shrink-0 text-right tabular-nums ${r.doubled ? "text-lime" : "text-cream"}`}>{r.pts}</span>
-                <span className="w-16 shrink-0 text-right text-muted tabular-nums">{r.cap ?? ""}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 border-t-[3px] border-border pt-3 text-xs text-muted">Team</p>
-          <ul className="mt-3 flex flex-col gap-2.5">
-            {teamRows().map((r) => (
-              <li key={r.label} className="flex items-baseline gap-3 text-xs">
-                <span className="min-w-0 flex-1 text-cream normal-case">{r.label}</span>
-                <span className="w-14 shrink-0 text-right text-cream tabular-nums">{r.pts}</span>
-                <span className="w-16 shrink-0" />
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ScoreCard featured={board.featured} />
 
         <div className="border-[3px] border-border bg-bg-card p-3 sm:p-4">
           <div className="flex items-baseline justify-between gap-3 text-xs">

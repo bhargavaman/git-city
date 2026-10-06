@@ -5,7 +5,7 @@ import type { LeaguePageData, TownRankingRow } from "@/lib/leagues/queries";
 import { crewSummary, townsAround } from "@/lib/towns/race-view";
 import { townDisplayName } from "@/lib/towns/names";
 import Panel from "./Panel";
-import { CrewRow, DayLetters, HowItWorks, Lane, ListDialog, Stakes, UnrankedLane, useToday } from "./race";
+import { CrewRow, DayLetters, HowItWorks, Lane, ListDialog, MyPoints, Stakes, UnrankedLane, useToday } from "./race";
 import { withLiveTown } from "./RaceWidget";
 
 /**
@@ -38,6 +38,11 @@ export default function StandingsPanel({
   return (
     <>
       <Panel title="This week" onClose={onClose}>
+        {viewer && (
+          <div className="mb-4">
+            <MyPoints />
+          </div>
+        )}
         <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
           <Stakes />
           <HowItWorks />

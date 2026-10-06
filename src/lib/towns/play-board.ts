@@ -1,3 +1,4 @@
+import { isoDay, weekStart } from "@/lib/leagues/scoring";
 import { BATTLE_START_LABEL, RIVALRY } from "./rivalry";
 import { SIDES, battleWeekNumber, type Side } from "./battle-rules";
 import {
@@ -6,6 +7,7 @@ import {
   PRIZE_SPONSOR,
   TEAM_BONUS,
   capFor,
+  featuredFor,
   pointsFor,
   type Activity,
   type FeaturedActivity,
@@ -49,6 +51,12 @@ export function scoringRows(featured: FeaturedActivity | null): ScoringRow[] {
       doubled: a === featured,
     };
   });
+}
+
+/** Points per floor and the day's floor points cap right now (both double in a floors week). */
+export function floorScoring(now: number): { per: number; cap: number } {
+  const featured = featuredFor(isoDay(weekStart(new Date(now))));
+  return { per: pointsFor("floors", featured), cap: capFor("floors", featured) };
 }
 
 /** The two team categories, added to a side's score at the close. */

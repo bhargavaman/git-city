@@ -3,12 +3,14 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
+import { floorScoring } from "@/lib/towns/play-board";
 import { HUD_BOX } from "../shared";
 
 // Smash, above the honk prompt: "sign in" for a while after you run into a
 // building signed out, how long a shielded one has left when you run into
 // it, and the floor count while you're parked against your own broken
-// building (the drive room builds it back).
+// building (the drive room builds it back). Over the dash, your floor points
+// today against the day's cap, and a note when you hit it.
 // Read from the telemetry every animation frame, like the honk prompt.
 
 const HINT_MS = 4500;
@@ -20,6 +22,9 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
   const hours = useRef<HTMLSpanElement>(null);
   const rebuild = useRef<HTMLDivElement>(null);
   const floors = useRef<HTMLSpanElement>(null);
+  const today = useRef<HTMLDivElement>(null);
+  const todayPts = useRef<HTMLSpanElement>(null);
+  const maxed = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let raf = 0;
@@ -36,6 +41,15 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
         rebuild.current.dataset.on = String(on);
         if (on) floors.current.textContent = `${telemetry.rebuildFloors}/${telemetry.rebuildOf}`;
       }
+      if (today.current && todayPts.current) {
+        const n = telemetry.floorsToday;
+        today.current.dataset.on = String(n !== null);
+        if (n !== null) {
+          const { per, cap } = floorScoring(Date.now());
+          todayPts.current.textContent = `${Math.min(n * per, cap)}/${cap}`;
+        }
+      }
+      if (maxed.current) maxed.current.dataset.on = String(telemetry.floorsMaxedAt > 0 && now - telemetry.floorsMaxedAt < HINT_MS);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -58,6 +72,19 @@ export default function SmashNotice({ telemetry }: { telemetry: DriveTelemetry }
       <div ref={rebuild} data-on="false" className={`${chip} pointer-events-none`}>
         <span className="h-1.5 w-1.5 animate-pulse bg-lime" aria-hidden />
         Rebuilding <span ref={floors} className="text-lime" /> floors
+      </div>
+      <div ref={maxed} data-on="false" className={`${chip} pointer-events-none`}>
+        Floors maxed for today
+      </div>
+      <div
+        ref={today}
+        data-on="false"
+        className={`${chip.replace("bottom-32", "bottom-[5.5rem]")} pointer-events-none`}
+        aria-label="Floor points today"
+      >
+        <span className="text-muted">Floors today</span>
+        <span ref={todayPts} className="text-lime tabular-nums" />
+        <span className="text-muted">pts</span>
       </div>
     </>
   );

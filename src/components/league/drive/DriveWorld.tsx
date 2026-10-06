@@ -43,6 +43,7 @@ import Smash, { type SmashApi, type SmashSide } from "./Smash";
 import type { SmashStore } from "@/lib/league-city/smash";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { applyRoomDamage } from "@/lib/league-city/smash-net";
+import { FLOOR_DAY_CAP } from "@/lib/league-city/smash-floors";
 
 // Drive mode's physics world. Loaded with next/dynamic only when someone
 // presses Drive, so the Rapier WASM never reaches viewers or editors.
@@ -356,7 +357,18 @@ export default function DriveWorld({
     auth: smash ? smashToken : undefined,
     onOther: smash
       ? (msg) => {
-          if (msg.t === "smash_me") setSide(msg.can === true ? "smash" : "none");
+          if (msg.t === "smash_me") {
+            setSide(msg.can === true ? "smash" : "none");
+            telemetryRef.current.floorsToday = msg.can === true && msg.home !== true ? Number(msg.floors) || 0 : null;
+          }
+          if (msg.t === "floors" && typeof msg.b === "string") {
+            const tele = telemetryRef.current;
+            const n = Number(msg.n) || 0;
+            const today = Number(msg.today) || 0;
+            if (n > 0) smashApi.current?.scored(msg.b, n);
+            if (today >= FLOOR_DAY_CAP && (tele.floorsToday ?? 0) < FLOOR_DAY_CAP) tele.floorsMaxedAt = performance.now();
+            tele.floorsToday = today;
+          }
           for (const { target, col } of applyRoomDamage(smash, msg, Date.now())) smashApi.current?.debris(target, col);
         }
       : undefined,

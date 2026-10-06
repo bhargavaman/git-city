@@ -13,12 +13,17 @@
 export const MAX_SEEN = 5;
 /** Floors one entry may carry (the day cap is 200; this only bounds junk). */
 export const FLOOR_ENTRY_MAX = 400;
-/** A move faster than TOP_SPEED_MS × JUMP_SLACK (m/s) counts as a jump. */
-export const JUMP_SLACK = 1.6;
-/** Drive tuning top speed (m/s). Boost (35) stays under the 40 m/s line. */
-export const TOP_SPEED_MS = 25;
-/** Samples closer together than this (ms) say nothing about speed. */
-const JUMP_MIN_DT = 50;
+/**
+ * Average speed (m/s) over JUMP_WINDOW_MS that counts as a jump. Boost tops
+ * out at 35; the margin covers being pushed out from under a fallen building.
+ * A teleport across the city goes far past it.
+ */
+export const JUMP_SPEED = 60;
+/**
+ * Speed is measured over at least this long (ms). Packets are timestamped on
+ * arrival, so network jitter makes any two close samples look like a jump.
+ */
+export const JUMP_WINDOW_MS = 1000;
 
 export interface FloorEntry {
   dev: number;
@@ -94,11 +99,67 @@ export class FloorTally {
   }
 }
 
-/** Two car positions (m, ms) imply a speed no car reaches. */
-export function impliedJump(prev: { x: number; z: number; at: number }, next: { x: number; z: number; at: number }): boolean {
+type Sample = { x: number; z: number; at: number };
+
+/** Two car positions (m, ms) at least JUMP_WINDOW_MS apart imply a speed no car reaches. */
+export function impliedJump(prev: Sample, next: Sample): boolean {
   const dt = next.at - prev.at;
-  if (dt < JUMP_MIN_DT) return false;
-  return Math.hypot(next.x - prev.x, next.z - prev.z) / (dt / 1000) > TOP_SPEED_MS * JUMP_SLACK;
+  if (dt < JUMP_WINDOW_MS) return false;
+  return Math.hypot(next.x - prev.x, next.z - prev.z) / (dt / 1000) > JUMP_SPEED;
+}
+
+/** One car's jump check: compares each position with the one about a second before. */
+export class JumpWatch {
+  private anchor: Sample | null = null;
+
+  /** True when the last window implied a jump. */
+  see(p: Sample): boolean {
+    if (!this.anchor) {
+      this.anchor = p;
+      return false;
+    }
+    if (p.at - this.anchor.at < JUMP_WINDOW_MS) return false;
+    const jumped = impliedJump(this.anchor, p);
+    this.anchor = p;
+    return jumped;
+  }
+}
+
+/** Floors a player scores per UTC day (CAPS.floors in towns/play-rules; play-rules.test checks they match). */
+export const FLOOR_DAY_CAP = 200;
+
+/**
+ * Each player's floors today, for the HUD: what scores of each hit and the
+ * running total. Seeded from the site when the driver signs in, so it holds
+ * across rooms; a new UTC day starts at 0.
+ */
+export class FloorsToday {
+  private by = new Map<string, { day: string; n: number }>();
+
+  private entry(login: string, now: number) {
+    const day = utcDay(now);
+    let c = this.by.get(login);
+    if (!c || c.day !== day) this.by.set(login, (c = { day, n: 0 }));
+    return c;
+  }
+
+  /** The site's stored count at sign-in; never lowers what this room already counted. */
+  seed(login: string, n: number, now: number) {
+    const c = this.entry(login, now);
+    c.n = Math.max(c.n, Math.max(0, Math.floor(n)));
+  }
+
+  /** `took` floors off a building: how many of them score, and the day's total (capped). */
+  add(login: string, took: number, now: number): { n: number; today: number } {
+    const c = this.entry(login, now);
+    const n = Math.max(0, Math.min(took, FLOOR_DAY_CAP - c.n));
+    c.n += Math.max(0, took);
+    return { n, today: Math.min(c.n, FLOOR_DAY_CAP) };
+  }
+
+  today(login: string, now: number): number {
+    return Math.min(this.entry(login, now).n, FLOOR_DAY_CAP);
+  }
 }
 
 /** A device hash: HMAC-SHA256 of ip and user-agent, first 16 hex. Never the raw values. */

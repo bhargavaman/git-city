@@ -12,7 +12,8 @@ import { DAILY_CONTRIBUTION_CAP, TOWN_MIN_CODERS } from "@/lib/leagues/scoring";
 import { DAY_COLORS, DAY_LETTERS, dayIndex, dayLevel } from "@/lib/towns/race-view";
 import { townDisplayName } from "@/lib/towns/names";
 import { Avatar, HUD_BOX, fmt, useCountdown } from "./shared";
-import { RULES_PATH } from "@/lib/towns/play-rules";
+import { RULES_PATH, type PlayPhase } from "@/lib/towns/play-rules";
+import { emptyLine } from "@/lib/towns/play-board";
 
 /** Today's column (UTC), read once on the client. */
 export function useToday(): number {
@@ -62,6 +63,38 @@ export function Stakes({ small = false }: { small?: boolean }) {
       <TrophyIcon size={12} className="text-lime" />
       #1 takes the monument · <span className="tabular-nums">{left || "…"}</span>
     </span>
+  );
+}
+
+/** Your Claude vs Codex points this week and your place on the board (refreshes when the panel opens). */
+export function MyPoints() {
+  const [me, setMe] = useState<{ phase: PlayPhase; points: number; rank: number | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/towns/play/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && d && setMe(d))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!me) return null;
+  return (
+    <div className="flex items-center gap-2 border-2 border-border bg-bg-card px-3 py-2 text-[10px]">
+      <span className="min-w-0 flex-1 text-muted">Your points</span>
+      {me.phase === "before" ? (
+        <span className="text-muted normal-case">{emptyLine(me.phase)}</span>
+      ) : (
+        <span className="text-lime tabular-nums">
+          {fmt(me.points)}
+          {me.rank !== null && <span className="text-muted"> · #{me.rank}</span>}
+        </span>
+      )}
+      <Link href={RULES_PATH} className="-my-3 py-3 text-muted transition-colors hover:text-cream">
+        Rules →
+      </Link>
+    </div>
   );
 }
 

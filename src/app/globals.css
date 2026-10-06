@@ -47,6 +47,13 @@ body {
   80% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-14px) scale(1); }
 }
+/* Smash: "+N" points rising off the building you hit. */
+@keyframes floor-pop {
+  0% { opacity: 0; transform: translateY(4px); }
+  12% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-28px); }
+}
 /* A reaction key pressed: its slot jumps. */
 @keyframes emote-key {
   0% { transform: scale(1); }

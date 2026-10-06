@@ -1,13 +1,15 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import { Howl } from "howler";
 import { SMASH, type SmashHit, type SmashStore } from "@/lib/league-city/smash";
 import { BLAST_ROWS, REBUILD_REACH, REBUILD_SPEED, toFootprint } from "@/lib/league-city/smash-net";
 import type { ClientMsg } from "@/lib/league-city/drive/net";
 import type { DriveTelemetry } from "@/lib/league-city/drive/telemetry";
 import { M_TO_UNIT } from "@/lib/league-city/drive/tuning";
+import { floorScoring } from "@/lib/towns/play-board";
 import type { CarApi } from "./Car";
 import { Bursts, type VoxelBursts } from "./Voxels";
 
@@ -20,6 +22,7 @@ import { Bursts, type VoxelBursts } from "./Voxels";
 // you can't break anything: running into a building shows the sign-in hint,
 // and a shielded one (it fell less than 12h ago) says how long it has left.
 // Parked against your own broken building, the HUD counts it back up.
+// Floors that score (the room says which) rise off the building as "+N".
 
 /** What the room said about you: signed in with a building (you smash), or not (yet). */
 export type SmashSide = "smash" | "none";
@@ -29,7 +32,20 @@ export interface SmashApi {
   blast: (x: number, z: number, reach: number, fx?: { id: number; mine: boolean }) => void;
   /** Floors someone else knocked off a column: the same burst yours make. */
   debris: (target: number, col: number) => void;
+  /** The room counted `n` of your floors off `login`'s building: "+N" over it. */
+  scored: (login: string, n: number) => void;
 }
+
+interface Pop {
+  key: number;
+  target: number;
+  pts: number;
+  at: number;
+}
+
+/** A pop lasts this long (ms); hits on the same building within MERGE_MS add up in one. */
+const POP_MS = 1100;
+const MERGE_MS = 350;
 
 const DEBRIS = ["#1c2233", "#2a3147", "#ffd76a", "#ffe9a8", "#8fa3c7", "#3a4462"];
 const CHUNK = ["#141a2a"];
@@ -98,6 +114,9 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     for (const [target, c] of byTarget) send({ t: "smash", b: store.targets[target].login, c, k, ...(fx !== undefined ? { fx } : {}) });
   };
 
+  const [pops, setPops] = useState<Pop[]>([]);
+  const popKey = useRef(0);
+
   useImperativeHandle(ref, () => ({
     blast(x, z, reach, fx) {
       // Only your own attacks break floors from here; others' come back from the room.
@@ -110,6 +129,20 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
       const t = store.targets[target];
       const [x, z] = store.columnCenter(target, col);
       burst(x, t.floorH / 2, z, t.floorH, 0);
+    },
+    scored(login, n) {
+      const target = store.index.get(login);
+      if (target === undefined || n <= 0) return;
+      const now = performance.now();
+      const pts = n * floorScoring(Date.now()).per;
+      setPops((list) => {
+        const live = list.filter((p) => now - p.at < POP_MS);
+        const last = live[live.length - 1];
+        if (last && last.target === target && now - last.at < MERGE_MS) {
+          return [...live.slice(0, -1), { ...last, pts: last.pts + pts, at: now, key: ++popKey.current }];
+        }
+        return [...live.slice(-5), { key: ++popKey.current, target, pts, at: now }];
+      });
     },
   }));
 
@@ -154,5 +187,22 @@ export default forwardRef<SmashApi, Props>(function Smash({ store, car, impactRe
     report(hits, "car");
   });
 
-  return <Bursts ref={bursts} />;
+  return (
+    <>
+      <Bursts ref={bursts} />
+      {pops.map((p) => {
+        const t = store.targets[p.target];
+        const top = Math.max(1, ...store.rowsOf(p.target)) * t.floorH;
+        return (
+          <group key={p.key} position={[t.x, top + 6, t.z]}>
+            <Html center zIndexRange={[25, 0]} style={{ pointerEvents: "none" }}>
+              <div className="border-[3px] border-border bg-bg/85 px-1.5 py-0.5 font-pixel text-[18px] leading-none text-lime" style={{ animation: `floor-pop ${POP_MS}ms ease-out both` }} aria-hidden>
+                +{p.pts}
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+    </>
+  );
 });

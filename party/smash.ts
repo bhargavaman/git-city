@@ -2,7 +2,7 @@ import type { Party } from "partykit/server";
 import type { ServerMsg } from "../src/lib/league-city/drive/net";
 import { FLAG_BOOST } from "../src/lib/league-city/drive/net";
 import { M_TO_UNIT } from "../src/lib/league-city/drive/tuning";
-import { SMASH, SmashStore, type DamageEntry, type SmashTarget } from "../src/lib/league-city/smash";
+import { SMASH, SmashStore, cols, type DamageEntry, type SmashTarget } from "../src/lib/league-city/smash";
 import {
   BLAST_BUILDINGS,
   BLAST_ROWS,
@@ -17,7 +17,7 @@ import {
   toFootprint,
   type SmashMsg,
 } from "../src/lib/league-city/smash-net";
-import { FloorTally, FloorsToday } from "../src/lib/league-city/smash-floors";
+import { FloorParts, FloorTally, FloorsToday } from "../src/lib/league-city/smash-floors";
 
 // ─── Smash (drive room side) ────────────────────────────────
 // The authority on a town's floors. Loads the town's buildings and saved
@@ -72,6 +72,8 @@ export class SmashRoom {
   private tally = new FloorTally();
   /** Each driver's floors today, for the "+N" and the HUD counter. */
   private floorsToday = new FloorsToday();
+  /** Blocks taken off each building that don't make a whole floor yet. */
+  private parts = new FloorParts();
   /** Device hashes that arrived before the driver's hello. */
   private early = new Map<string, string>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -237,11 +239,13 @@ export class SmashRoom {
     const { took, down } = store.hitColumns(target, columns, n, now, d.login);
     const attackerId = this.ids.get(d.login);
     // Play points: floors off a building outside your own town (shielded ones give took = 0).
-    if (took > 0 && !d.home && attackerId !== undefined) {
-      this.tally.add(d.login, attackerId, m.b, took, now);
+    // took is blocks (one floor of one column); a floor scores once every column of it is down.
+    const floors = took > 0 && !d.home && attackerId !== undefined ? this.parts.add(d.login, m.b, took, cols(store.targets[target])) : 0;
+    if (floors > 0 && attackerId !== undefined) {
+      this.tally.add(d.login, attackerId, m.b, floors, now);
       if (d.seen) this.tally.see(d.login, attackerId, d.seen, now);
       // Tell the driver what scored, for the "+N" over the building and the HUD counter.
-      const { n: scored, today } = this.floorsToday.add(d.login, took, now);
+      const { n: scored, today } = this.floorsToday.add(d.login, floors, now);
       this.room.getConnection(id)?.send(JSON.stringify({ t: "floors", b: m.b, n: scored, today } satisfies ServerMsg));
     }
     if (down && attackerId !== undefined) {

@@ -27,6 +27,10 @@ describe("towns launch copy", () => {
     expect(e.html).toContain("Battle starts Oct 12.");
   });
 
+  it("names the weekly Firecrawl prize in the announce email", () => {
+    expect(TOWNS_LAUNCH.render("announce", ctx).text).toContain("The top 5 players each week win 2,500 Firecrawl credits.");
+  });
+
   it("never says Monday or that coding decides the war", () => {
     for (const v of VARIANTS) {
       const e = TOWNS_LAUNCH.render(v, ctx);

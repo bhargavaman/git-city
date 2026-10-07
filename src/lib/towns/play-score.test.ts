@@ -347,40 +347,40 @@ describe("pickWinners", () => {
   const ids = (out: { developer_id: number }[]) => out.map((e) => e.developer_id);
   const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
-  it("relies on 10 winners and a top-15 check", () => {
-    expect(PRIZE_WINNERS).toBe(10);
+  it("relies on 5 winners and a top-15 check", () => {
+    expect(PRIZE_WINNERS).toBe(5);
     expect(CHECK_TOP).toBe(15);
   });
 
-  it("takes the top 10 eligible in order", () => {
-    expect(ids(pickWinners(field(12), { excluded: [], pastWinners: [], onePrize: false }))).toEqual(range(1, 10));
+  it("takes the top 5 eligible in order", () => {
+    expect(ids(pickWinners(field(12), { excluded: [], pastWinners: [], onePrize: false }))).toEqual(range(1, 5));
   });
 
-  it("moves the 11th up when a login is excluded (case-insensitive)", () => {
+  it("moves the 6th up when a login is excluded (case-insensitive)", () => {
     const out = pickWinners(field(12), { excluded: ["P3"], pastWinners: [], onePrize: false });
-    expect(ids(out)).toEqual([1, 2, ...range(4, 11)]);
+    expect(ids(out)).toEqual([1, 2, ...range(4, 6)]);
   });
 
   it("skips players who aren't eligible", () => {
     const entries = field(12).map((e) => (e.developer_id === 2 ? { ...e, eligible: false } : e));
-    expect(ids(pickWinners(entries, { excluded: [], pastWinners: [], onePrize: false }))).toEqual([1, ...range(3, 11)]);
+    expect(ids(pickWinners(entries, { excluded: [], pastWinners: [], onePrize: false }))).toEqual([1, ...range(3, 6)]);
   });
 
   it("skips past winners only when onePrize is on", () => {
     const entries = field(12);
-    expect(ids(pickWinners(entries, { excluded: [], pastWinners: ["p1"], onePrize: true }))).toEqual(range(2, 11));
-    expect(ids(pickWinners(entries, { excluded: [], pastWinners: ["p1"], onePrize: false }))).toEqual(range(1, 10));
+    expect(ids(pickWinners(entries, { excluded: [], pastWinners: ["p1"], onePrize: true }))).toEqual(range(2, 6));
+    expect(ids(pickWinners(entries, { excluded: [], pastWinners: ["p1"], onePrize: false }))).toEqual(range(1, 5));
   });
 
   it("gives one prize to accounts sharing a seen hash in the top 15", () => {
     const entries = field(12, (id) => ({ seen: id === 1 || id === 2 ? ["h1"] : [`own${id}`] }));
-    expect(ids(pickWinners(entries, { excluded: [], pastWinners: [], onePrize: false }))).toEqual([1, ...range(3, 11)]);
+    expect(ids(pickWinners(entries, { excluded: [], pastWinners: [], onePrize: false }))).toEqual([1, ...range(3, 6)]);
   });
 
   it("doesn't compare seen hashes below the top 15", () => {
     const entries = field(20, (id) => ({ seen: id === 16 || id === 17 ? ["h2"] : [] }));
-    const excluded = range(1, 8).map((id) => `p${id}`);
-    expect(ids(pickWinners(entries, { excluded, pastWinners: [], onePrize: false }))).toEqual(range(9, 18));
+    const excluded = range(1, 12).map((id) => `p${id}`);
+    expect(ids(pickWinners(entries, { excluded, pastWinners: [], onePrize: false }))).toEqual(range(13, 17));
   });
 });
 

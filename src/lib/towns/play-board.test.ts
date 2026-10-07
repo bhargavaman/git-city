@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACTIVITIES, capFor, pointsFor, PRIZE_SPONSOR, TEAM_BONUS } from "./play-rules";
+import { ACTIVITIES, capFor, pointsFor, TEAM_BONUS } from "./play-rules";
 import { boardHeading, boardWeek, bonusLine, emptyLine, floorScoring, prizeNote, scoringRows, sideColor, teamRows, winnersLine } from "./play-board";
 
 describe("play-rules numbers this board relies on", () => {
@@ -48,9 +48,10 @@ describe("this week copy", () => {
   });
 
   it("notes the prize by phase, with and without a sponsor", () => {
-    expect(prizeNote("prize", "Firecrawl")).toBe("10,000 Firecrawl credits each");
-    expect(prizeNote("prize", null)).toBe("Named every Monday");
-    expect(prizeNote("before", "Firecrawl")).toBeNull();
+    expect(prizeNote("prize", "Firecrawl")).toBe("Top 5 win 2,500 Firecrawl credits");
+    expect(prizeNote("before", "Firecrawl")).toBe("Top 5 win 2,500 Firecrawl credits");
+    expect(prizeNote("prize", null)).toBe("Top 5 named every Monday");
+    expect(prizeNote("before", null)).toBeNull();
     expect(emptyLine("before")).toBe("Points count from Mon, Oct 12");
     expect(emptyLine("prize")).toBe("Nobody scored yet");
     expect(prizeNote("ended", "Firecrawl")).toBe("Season over");
@@ -67,7 +68,6 @@ describe("this week copy", () => {
   });
 
   it("never says what the rules forbid while there is no sponsor", () => {
-    expect(PRIZE_SPONSOR).toBeNull();
     const all = [
       ...scoringRows(null).flatMap((r) => [r.label, r.pts, r.cap ?? ""]),
       ...scoringRows("kudos").flatMap((r) => [r.label, r.pts, r.cap ?? ""]),
@@ -75,8 +75,8 @@ describe("this week copy", () => {
       boardHeading("before"),
       boardHeading("prize"),
       emptyLine("before"),
-      prizeNote("prize"),
-      prizeNote("ended"),
+      prizeNote("prize", null),
+      prizeNote("ended", null),
       bonusLine({ side: "claude", pct: 5 }).rest,
     ].join("\n");
     expect(all).not.toMatch(/firecrawl|credits|per dev|\bpay|money|raffle|\bdm\b|2,135|30\+ days/i);

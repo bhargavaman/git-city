@@ -9,6 +9,9 @@ import {
   FEATURED_ROTATION,
   POINTS,
   PRIZE_CREDITS,
+  PRIZE_DELIVERY,
+  PRIZE_WINNERS,
+  SEASON_WEEKS,
   PRIZE_SPONSOR,
   SEASON_END,
   capFor,
@@ -113,13 +116,15 @@ describe("smallerSideBonus", () => {
 });
 
 describe("sponsor", () => {
-  it("stays unnamed until Firecrawl confirms", () => {
-    expect(PRIZE_SPONSOR).toBeNull();
+  it("is Firecrawl, 2,500 credits to each of 5 winners a week, as coupons", () => {
+    expect(PRIZE_SPONSOR).toBe("Firecrawl");
+    expect(PRIZE_CREDITS).toBe(2_500);
+    expect(PRIZE_CREDITS.toLocaleString("en-US")).toBe("2,500");
+    expect(PRIZE_DELIVERY).toBe("code");
   });
 
-  it("keeps the prize as a number that copy formats", () => {
-    expect(PRIZE_CREDITS).toBe(10_000);
-    expect(PRIZE_CREDITS.toLocaleString("en-US")).toBe("10,000");
+  it("fits the 50k credits Firecrawl gives for the season", () => {
+    expect(PRIZE_WINNERS * PRIZE_CREDITS * SEASON_WEEKS).toBe(50_000);
   });
 });
 

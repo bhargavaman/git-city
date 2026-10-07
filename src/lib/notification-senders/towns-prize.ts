@@ -8,16 +8,21 @@ import { battleWeekNumber } from "../towns/battle-rules";
 import { PRIZE_CREDITS, PRIZE_DELIVERY, PRIZE_SPONSOR, PRIZE_WINNERS, RULES_PATH } from "../towns/play-rules";
 import type { PlayEntry } from "../towns/play-score";
 
-// The week's winners, once, after Sam's Monday check (/api/towns/play/publish).
-// Three versions: sponsor + winners reply with their sponsor account email,
-// sponsor + a code sent separately, or glory only (no sponsor). Git City never
+// The week's winners, once, from the Monday close (play-publish.ts). Three
+// versions: sponsor + the winner's coupon in the email, sponsor + winners reply
+// with their sponsor account email, or glory only (no sponsor). Git City never
 // pays anything: the sponsor delivers its own credits.
 
 export interface PrizeWinnerEmailData {
   week: number;
   sponsor: "Firecrawl" | null;
   delivery: "reply" | "code";
+  /** The week's coupon (a code, or a link), for "code" delivery. */
+  code?: string | null;
 }
+
+const SPONSOR_URL = "https://www.firecrawl.dev/app";
+const isLink = (code: string) => /^https?:\/\//i.test(code);
 
 function prizeHeader(d: PrizeWinnerEmailData) {
   const credits = `${PRIZE_CREDITS.toLocaleString("en-US")} ${d.sponsor} credits`;
@@ -25,7 +30,7 @@ function prizeHeader(d: PrizeWinnerEmailData) {
     ? `You're one of the ${PRIZE_WINNERS} players of week ${d.week} in Git City Towns. Your login is on /towns and in our Monday post.`
     : d.delivery === "reply"
       ? `You won ${credits} in Git City Towns. Reply with the email of your ${d.sponsor} account and we'll pass it on.`
-      : `You won ${credits} in Git City Towns. Your code comes in a separate email.`;
+      : `You won ${credits} in Git City Towns.`;
   return { subject: `You won week ${d.week} of Git City Towns`, preheader: line, line };
 }
 
@@ -34,15 +39,40 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
   const url = trackedUrl("/towns", "play_prize");
   const rulesUrl = trackedUrl(RULES_PATH, "play_prize");
   const reason = `You're getting this because you finished in the top ${PRIZE_WINNERS} of Git City Towns.`;
-  const html = renderLayout({
-    title: subject,
-    preheader,
-    body: [heading("You won week", String(d.week)), paragraph(line), button("See the board", url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
+  // With a coupon: a link becomes the button, a code is printed under the line.
+  const code = d.sponsor && d.delivery === "code" ? (d.code ?? null) : null;
+  const claim = code && isLink(code) ? code : null;
+  const body = [
+    heading("You won week", String(d.week)),
+    paragraph(line),
+    ...(code && !claim ? [paragraph(`Your code: ${code}. Redeem it in your ${d.sponsor} account.`)] : []),
+    claim ? button("Claim your credits", claim) : code ? button(`Open ${d.sponsor}`, SPONSOR_URL) : button("See the board", url),
+    ...(code ? [textLink("See the board", url)] : []),
+    textLink("How scoring and checks work", rulesUrl),
+  ];
+  const html = renderLayout({ title: subject, preheader, body: body.join("\n"), reason, links });
+  const text = renderText({
+    lines: [
+      subject,
+      "",
+      line,
+      ...(code ? ["", claim ? `Claim your credits: ${claim}` : `Your code: ${code}`, ...(claim ? [] : [`Redeem it in your ${d.sponsor} account: ${SPONSOR_URL}`])] : []),
+      "",
+      `See the board: ${url}`,
+      "",
+      `How scoring and checks work: ${rulesUrl}`,
+    ],
     reason,
     links,
   });
-  const text = renderText({ lines: [subject, "", line, "", `See the board: ${url}`, "", `How scoring and checks work: ${rulesUrl}`], reason, links });
   return { subject, preheader, html, text };
+}
+
+/** The week's coupon from PRIZE_CODES ("W1,W2,W3,W4", week 1 = BATTLE_START), or null. */
+export function weekCode(raw: string | undefined, week: string): string | null {
+  const codes = (raw ?? "").split(",").map((c) => c.trim());
+  const code = codes[battleWeekNumber(week) - 1];
+  return code ? code : null;
 }
 
 /**
@@ -64,22 +94,30 @@ export function publishRefusal(
   return null;
 }
 
-/** One email per winner. Deduped per developer and week, so a rerun never sends twice. */
+/**
+ * One email per winner. Deduped per developer and week, so a rerun never sends
+ * twice. With "code" delivery a winner without a coupon gets no email yet (a
+ * rerun sends it once codes are loaded), so nobody is told "you won" empty-handed.
+ */
 export async function sendPrizeWinners(
   startDay: string,
-  winners: Pick<PlayEntry, "developer_id" | "login">[],
+  winners: (Pick<PlayEntry, "developer_id" | "login"> & { code?: string | null })[],
 ): Promise<number> {
-  const data: PrizeWinnerEmailData = { week: battleWeekNumber(startDay), sponsor: PRIZE_SPONSOR, delivery: PRIZE_DELIVERY };
-  const { subject, preheader } = prizeHeader(data);
+  const week = battleWeekNumber(startDay);
+  const base: PrizeWinnerEmailData = { week, sponsor: PRIZE_SPONSOR, delivery: PRIZE_DELIVERY };
+  const { subject, preheader } = prizeHeader(base);
   const replyTo = PRIZE_DELIVERY === "reply" ? process.env.PRIZE_REPLY_TO || undefined : undefined;
-  const payloads: NotificationPayload[] = winners.map((w) => ({
+  const needsCode = PRIZE_SPONSOR !== null && PRIZE_DELIVERY === "code";
+  const ready = needsCode ? winners.filter((w) => w.code) : winners;
+  if (ready.length < winners.length) console.error(`[towns-prize] ${winners.length - ready.length} winners of ${startDay} have no code yet`);
+  const payloads: NotificationPayload[] = ready.map((w) => ({
     type: "play_prize",
     category: "leagues",
     developerId: w.developer_id,
     dedupKey: `play_prize:${w.developer_id}:${startDay}`,
     title: subject,
     body: preheader,
-    render: (links) => renderPrizeWinnerEmail(data, links),
+    render: (links) => renderPrizeWinnerEmail({ ...base, code: w.code ?? null }, links),
     actionUrl: `${EMAIL_BASE_URL}/towns`,
     priority: "high",
     forceSend: true,

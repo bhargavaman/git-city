@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Avatar } from "@/components/league/hud/shared";
 import type { PlayBoard } from "@/lib/towns/play";
-import { PRIZE_WINNERS, RULES_PATH } from "@/lib/towns/play-rules";
+import { BOARD_SIZE, PRIZE_WINNERS, RULES_PATH } from "@/lib/towns/play-rules";
 import { boardHeading, bonusLine, emptyLine, prizeNote, sideColor, winnersLine } from "@/lib/towns/play-board";
 import ScoreCard from "./ScoreCard";
 
@@ -10,7 +10,7 @@ import ScoreCard from "./ScoreCard";
 // only adds what it doesn't: the points, the team bonus and who leads.
 export default function ThisWeek({ board }: { board: PlayBoard }) {
   // Before the season the week's points don't count yet, so the card stays empty.
-  const top = board.phase === "before" ? [] : board.entries.filter((e) => e.prize > 0).slice(0, PRIZE_WINNERS);
+  const top = board.phase === "before" ? [] : board.entries.filter((e) => e.prize > 0).slice(0, BOARD_SIZE);
   const note = prizeNote(board.phase);
   const bonus = board.bonus ? bonusLine(board.bonus) : null;
 
@@ -27,10 +27,8 @@ export default function ThisWeek({ board }: { board: PlayBoard }) {
         <ScoreCard featured={board.featured} />
 
         <div className="border-[3px] border-border bg-bg-card p-3 sm:p-4">
-          <div className="flex items-baseline justify-between gap-3 text-xs">
-            <p className="text-muted">Top {PRIZE_WINNERS}</p>
-            {note && <p className="text-right text-muted normal-case">{note}</p>}
-          </div>
+          <p className="text-xs text-muted">Top {BOARD_SIZE}</p>
+          {note && <p className="mt-1 text-xs text-lime normal-case">{note}</p>}
           {top.length === 0 ? (
             <p className="mt-3 text-xs text-muted normal-case">{emptyLine(board.phase)}</p>
           ) : (
@@ -40,7 +38,7 @@ export default function ThisWeek({ board }: { board: PlayBoard }) {
                 return (
                   <li key={e.login}>
                     <Link href={`/dev/${e.login}`} className="flex min-h-9 items-center gap-2 text-xs hover:text-cream">
-                      <span className={`w-5 shrink-0 text-right tabular-nums ${i === 0 ? "text-lime" : "text-dim"}`}>{i + 1}</span>
+                      <span className={`w-5 shrink-0 text-right tabular-nums ${i < PRIZE_WINNERS ? "text-lime" : "text-dim"}`}>{i + 1}</span>
                       <Avatar src={e.avatar_url} size={20} />
                       <span className={`min-w-0 flex-1 truncate normal-case ${color ? "" : "text-cream"}`} style={color ? { color } : undefined}>
                         @{e.login}

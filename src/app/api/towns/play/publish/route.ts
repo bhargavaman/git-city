@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPlayWeekRow } from "@/lib/towns/play-load";
-import { publishPlayWeek } from "@/lib/towns/play-publish";
+import { publishPlayWeek, withCodes } from "@/lib/towns/play-publish";
 import { publishRefusal, sendPrizeWinners } from "@/lib/notification-senders/towns-prize";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       const row = await getPlayWeekRow(week);
       if (!row?.published_at) return NextResponse.json({ error: "Not published yet" }, { status: 409 });
       const logins = row.winners ?? [];
-      const emailed = await sendPrizeWinners(week, row.standings.filter((e) => logins.includes(e.login)));
+      const emailed = await sendPrizeWinners(week, await withCodes(week, row.standings.filter((e) => logins.includes(e.login))));
       return NextResponse.json({ ok: true, resent: true, winners: logins, emailed });
     }
     const r = await publishPlayWeek(week);

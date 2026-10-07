@@ -2,10 +2,10 @@ import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { isoDay } from "@/lib/leagues/scoring";
 import { BATTLE_START } from "./rivalry";
-import { ONE_PRIZE_PER_SEASON } from "./play-rules";
+import { ONE_PRIZE_PER_SEASON, PRIZE_DELIVERY, PRIZE_SPONSOR } from "./play-rules";
 import { pickWinners } from "./play-score";
 import { getPlayWeekRow } from "./play-load";
-import { sendPrizeWinners } from "@/lib/notification-senders/towns-prize";
+import { sendPrizeWinners, weekCode } from "@/lib/notification-senders/towns-prize";
 
 export type PublishResult =
   | { status: "published"; winners: string[]; emailed: number }
@@ -44,5 +44,15 @@ export async function publishPlayWeek(week: string): Promise<PublishResult> {
   if (error) throw error;
   if (!updated || updated.length === 0) return { status: "already", winners: logins };
 
-  return { status: "published", winners: logins, emailed: await sendPrizeWinners(week, winners) };
+  return { status: "published", winners: logins, emailed: await sendPrizeWinners(week, await withCodes(week, winners)) };
+}
+
+/**
+ * Each winner with the week's coupon when prizes go out as codes. The sponsor
+ * gives one shared code per week; they live in the PRIZE_CODES env (never in
+ * the repo, which is public), comma-separated in week order.
+ */
+export async function withCodes<T extends { developer_id: number }>(week: string, winners: T[]): Promise<(T & { code: string | null })[]> {
+  const code = PRIZE_SPONSOR && PRIZE_DELIVERY === "code" ? weekCode(process.env.PRIZE_CODES, week) : null;
+  return winners.map((w) => ({ ...w, code }));
 }

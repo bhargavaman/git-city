@@ -5,6 +5,7 @@ import {
   ACTIVITIES,
   PRIZE_CREDITS,
   PRIZE_SPONSOR,
+  PRIZE_WINNERS,
   TEAM_BONUS,
   capFor,
   featuredFor,
@@ -95,10 +96,9 @@ export function boardHeading(phase: PlayPhase): string {
 
 /** The top 10 card's note: what the ranking is worth right now. */
 export function prizeNote(phase: PlayPhase, sponsor: "Firecrawl" | null = PRIZE_SPONSOR): string | null {
-  if (phase === "before") return null;
   if (phase === "ended") return "Season over";
-  if (sponsor) return `${PRIZE_CREDITS.toLocaleString("en-US")} ${sponsor} credits each`;
-  return "Named every Monday";
+  if (sponsor) return `Top ${PRIZE_WINNERS} win ${PRIZE_CREDITS.toLocaleString("en-US")} ${sponsor} credits`;
+  return phase === "before" ? null : `Top ${PRIZE_WINNERS} named every Monday`;
 }
 
 /** The top 10 card when it has no rows: before the season, when points start; then, nobody yet. */

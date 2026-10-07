@@ -73,8 +73,8 @@ describe("rulesCopy lines", () => {
   });
 
   it("names the sponsor's credits only when there is one", () => {
-    expect(rulesCopy({ ...base, sponsor: null }).prize).toMatchObject({ big: "Top 10", sub: "every week" });
-    expect(rulesCopy({ ...base, sponsor: "Firecrawl" }).prize.sub).toBe("10,000 Firecrawl credits each");
+    expect(rulesCopy({ ...base, sponsor: null }).prize).toMatchObject({ big: "Top 5", sub: "every week" });
+    expect(rulesCopy({ ...base, sponsor: "Firecrawl" }).prize.sub).toBe("2,500 Firecrawl credits each");
     expect(rulesCopy(base).prize.who[0]).toEqual({ term: "Account", text: "before Sep 8, 2026" });
   });
 

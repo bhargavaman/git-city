@@ -58,18 +58,20 @@ export const GROWTH_BY: "count" | "share" = "share";
 export const BONUS_FACTOR = 25;
 export const BONUS_MAX_PCT = 20;
 
-// Prize and the Monday check.
-export const PRIZE_WINNERS = 10;
+// Prize and the Monday check. The board on /towns lists BOARD_SIZE; the first PRIZE_WINNERS win.
+export const PRIZE_WINNERS = 5;
+export const BOARD_SIZE = 10;
 export const CHECK_TOP = 15;
 export const REFETCH_TOP = 30;
 export const ACCOUNT_CUTOFF = "2026-09-08";
 export const ACCOUNT_CUTOFF_LABEL = "Sep 8, 2026";
 
-// Pending decisions: each answer is a one-line change here.
-export const PRIZE_SPONSOR: "Firecrawl" | null = null;
+// Sponsor: Firecrawl, 50k credits for the season (4 weeks × 5 winners × 2,500).
+export const PRIZE_SPONSOR: "Firecrawl" | null = "Firecrawl";
 /** Credits per winner. A number: copy formats it with toLocaleString("en-US"). */
-export const PRIZE_CREDITS: number = 10_000;
-export const PRIZE_DELIVERY: "reply" | "code" = "reply";
+export const PRIZE_CREDITS: number = 2_500;
+/** "code": each winner's email carries a coupon from town_play_codes (migration 168). */
+export const PRIZE_DELIVERY: "reply" | "code" = "code";
 export const ONE_PRIZE_PER_SEASON: boolean = true;
 
 // Season: 4 prize weeks from BATTLE_START.

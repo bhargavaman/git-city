@@ -1,6 +1,7 @@
 import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, spacer, trackedUrl } from "../email/components";
 import { renderLayout, renderText } from "../email/layout";
 import type { CampaignDefinition, CampaignRenderContext } from "./types";
+import { PRIZE_CREDITS, PRIZE_SPONSOR, PRIZE_WINNERS } from "../towns/play-rules";
 
 const CAMPAIGN = "towns_launch";
 
@@ -12,6 +13,7 @@ function announce(ctx: CampaignRenderContext) {
   const lines = [
     `Git City just passed ${buildings} buildings. Now it has a war.`,
     "From Mon, Oct 12, everything you do in Git City scores. The side with the most points per player wins the week.",
+    ...(PRIZE_SPONSOR ? [`The top ${PRIZE_WINNERS} players each week win ${PRIZE_CREDITS.toLocaleString("en-US")} ${PRIZE_SPONSOR} credits.`] : []),
     "Meanwhile, drive into any town and knock its buildings down. Anyone's but yours.",
   ];
   const reason = "You're getting this because you have a building in Git City. We only email product news for big launches.";

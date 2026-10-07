@@ -21,7 +21,8 @@ export interface PrizeWinnerEmailData {
   code?: string | null;
 }
 
-const SPONSOR_URL = "https://www.firecrawl.dev/app";
+/** Firecrawl redeems credit coupons on the billing page (docs.firecrawl.dev/billing). */
+const SPONSOR_URL = "https://www.firecrawl.dev/app/billing";
 const isLink = (code: string) => /^https?:\/\//i.test(code);
 
 function prizeHeader(d: PrizeWinnerEmailData) {
@@ -45,8 +46,8 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
   const body = [
     heading("You won week", String(d.week)),
     paragraph(line),
-    ...(code && !claim ? [paragraph(`Your code: ${code}. Redeem it in your ${d.sponsor} account.`)] : []),
-    claim ? button("Claim your credits", claim) : code ? button(`Open ${d.sponsor}`, SPONSOR_URL) : button("See the board", url),
+    ...(code && !claim ? [paragraph(`Your code: ${code}. Redeem it on your ${d.sponsor} billing page.`)] : []),
+    claim ? button("Claim your credits", claim) : code ? button("Redeem your credits", SPONSOR_URL) : button("See the board", url),
     ...(code ? [textLink("See the board", url)] : []),
     textLink("How scoring and checks work", rulesUrl),
   ];
@@ -56,7 +57,7 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
       subject,
       "",
       line,
-      ...(code ? ["", claim ? `Claim your credits: ${claim}` : `Your code: ${code}`, ...(claim ? [] : [`Redeem it in your ${d.sponsor} account: ${SPONSOR_URL}`])] : []),
+      ...(code ? ["", claim ? `Claim your credits: ${claim}` : `Your code: ${code}`, ...(claim ? [] : [`Redeem it on your ${d.sponsor} billing page: ${SPONSOR_URL}`])] : []),
       "",
       `See the board: ${url}`,
       "",

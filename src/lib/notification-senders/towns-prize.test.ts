@@ -49,7 +49,7 @@ describe("renderPrizeWinnerEmail", () => {
   it("sponsor + a plain code prints it and links Firecrawl", () => {
     const e = render({ ...CODE, code: "GITCITY-ABC" });
     expect(e.text).toContain("Your code: GITCITY-ABC");
-    expect(e.text).toContain("Redeem it on your Firecrawl billing page: https://www.firecrawl.dev/app/billing");
+    expect(e.text).toContain("Redeem it in Firecrawl under Settings → Billing → Coupons: https://www.firecrawl.dev/app");
     expect(e.html).toContain("Redeem your credits");
   });
 

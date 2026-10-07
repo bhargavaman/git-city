@@ -10,7 +10,8 @@ import type { CityIdentity, CityObject, SignSide } from "@/lib/league-city/types
 import { Billboard, Flag, FloorLogo, HillSign, Portal } from "./IdentityPieces";
 import { Clawd, CodexCloud, ContextWindow, Sandbox, type MascotSize } from "./RivalryPieces";
 import { mascotSize } from "@/lib/league-city/rivalry-geometry";
-import { beamTexture, clothTexture, hillLettersTexture, loadLogoImage, logoTexture, wideTexture, type LogoImage } from "./logoTexture";
+import { beamTexture, clothTexture, hillLettersTexture, loadLogoImage, logoTexture, sponsorTexture, wideTexture, type LogoImage } from "./logoTexture";
+import { SPONSOR } from "@/lib/towns/sponsor";
 
 // Everything that makes a town recognizable: the portal, billboards, flags,
 // floor logos, planes, blimps and the hill sign. One set of textures per
@@ -129,6 +130,16 @@ export default function IdentityLayer({
     return out;
   }, [objects]);
 
+  // Claude vs Codex towns: the two billboards nearest the way in show the war's sponsor.
+  const war = SPONSOR !== null && pieces.rivalry.length > 0;
+  const sponsorLogo = useLogo(war && SPONSOR ? SPONSOR.wordmark : null);
+  const sponsorTex = useMemo(() => (sponsorLogo && SPONSOR ? sponsorTexture(sponsorLogo, SPONSOR.ratio) : null), [sponsorLogo]);
+  useEffect(() => () => sponsorTex?.dispose(), [sponsorTex]);
+  const sponsorBoards = useMemo(
+    () => new Set(war ? [...pieces.billboards].sort((a, b) => (b.pz ?? 0) - (a.pz ?? 0)).slice(0, 2).map((o) => o.id) : []),
+    [war, pieces.billboards],
+  );
+
   const hill = identity.signSide ? hillSignSpot(h, identity.signSide) : null;
   const sky = [...pieces.planes, ...pieces.blimps];
 
@@ -138,7 +149,7 @@ export default function IdentityLayer({
         <Portal key={o.id} position={[o.px ?? 0, o.pz ?? 0]} beam={tex.beam} onClick={onPortalClick} />
       ))}
       {pieces.billboards.map((o) => (
-        <Billboard key={o.id} position={[o.px ?? 0, o.pz ?? 0]} rot={o.rot} map={tex.wide} />
+        <Billboard key={o.id} position={[o.px ?? 0, o.pz ?? 0]} rot={o.rot} map={sponsorTex && sponsorBoards.has(o.id) ? sponsorTex : tex.wide} />
       ))}
       {pieces.flags.map((o, i) => (
         <Flag key={o.id} position={[o.px ?? 0, o.pz ?? 0]} rot={o.rot} map={tex.cloth} phase={i * 0.9} />

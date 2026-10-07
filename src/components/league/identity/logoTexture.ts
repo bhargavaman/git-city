@@ -115,6 +115,34 @@ export function wideTexture(logo: LogoImage | null, name: string): THREE.CanvasT
 }
 
 /**
+ * The war's sponsor panel (2:1, billboard): "PRESENTED BY" over the sponsor's
+ * wordmark. Drawn large and smooth, since a wordmark isn't pixel art.
+ */
+export function sponsorTexture(wordmark: LogoImage, ratio: number): THREE.CanvasTexture {
+  const W = 512;
+  const H = 256;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = PLATE_BG;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#8c8c9c";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "26px Silkscreen, monospace";
+  ctx.fillText("PRESENTED BY", W / 2, 70);
+  const lw = 360;
+  const lh = lw / ratio;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(wordmark.image, (W - lw) / 2, 112, lw, lh);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/**
  * A person's flag (2:1, the rubble flag): their avatar small in the middle,
  * the @login under it, shrunk to fit and cut with an ellipsis past that, so a
  * long login never runs off the cloth.

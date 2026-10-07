@@ -5,7 +5,7 @@ import { BATTLE_START } from "./rivalry";
 import { ONE_PRIZE_PER_SEASON, PRIZE_DELIVERY, PRIZE_SPONSOR } from "./play-rules";
 import { pickWinners } from "./play-score";
 import { getPlayWeekRow } from "./play-load";
-import { sendPrizeWinners } from "@/lib/notification-senders/towns-prize";
+import { sendPrizeWinners, weekCode } from "@/lib/notification-senders/towns-prize";
 
 export type PublishResult =
   | { status: "published"; winners: string[]; emailed: number }
@@ -47,16 +47,12 @@ export async function publishPlayWeek(week: string): Promise<PublishResult> {
   return { status: "published", winners: logins, emailed: await sendPrizeWinners(week, await withCodes(week, winners)) };
 }
 
-/** Each winner with their coupon (claim_play_code, migration 168) when prizes go out as codes. */
+/**
+ * Each winner with the week's coupon when prizes go out as codes. The sponsor
+ * gives one shared code per week; they live in the PRIZE_CODES env (never in
+ * the repo, which is public), comma-separated in week order.
+ */
 export async function withCodes<T extends { developer_id: number }>(week: string, winners: T[]): Promise<(T & { code: string | null })[]> {
-  if (!PRIZE_SPONSOR || PRIZE_DELIVERY !== "code") return winners.map((w) => ({ ...w, code: null }));
-  const sb = getSupabaseAdmin();
-  const out: (T & { code: string | null })[] = [];
-  // In order, so the codes go out in rank order.
-  for (const w of winners) {
-    const { data, error } = await sb.rpc("claim_play_code", { p_week: week, p_dev: w.developer_id });
-    if (error) console.error(`[play-publish] code for ${w.developer_id}:`, error.message);
-    out.push({ ...w, code: typeof data === "string" ? data : null });
-  }
-  return out;
+  const code = PRIZE_SPONSOR && PRIZE_DELIVERY === "code" ? weekCode(process.env.PRIZE_CODES, week) : null;
+  return winners.map((w) => ({ ...w, code }));
 }

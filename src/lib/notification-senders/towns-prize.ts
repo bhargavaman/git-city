@@ -17,10 +17,11 @@ export interface PrizeWinnerEmailData {
   week: number;
   sponsor: "Firecrawl" | null;
   delivery: "reply" | "code";
-  /** The winner's coupon (a link or a code), for "code" delivery. */
+  /** The week's coupon (a code, or a link), for "code" delivery. */
   code?: string | null;
 }
 
+const SPONSOR_URL = "https://www.firecrawl.dev/app";
 const isLink = (code: string) => /^https?:\/\//i.test(code);
 
 function prizeHeader(d: PrizeWinnerEmailData) {
@@ -44,9 +45,9 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
   const body = [
     heading("You won week", String(d.week)),
     paragraph(line),
-    ...(code && !claim ? [paragraph(`Your code: ${code}`)] : []),
-    claim ? button("Claim your credits", claim) : button("See the board", url),
-    ...(claim ? [textLink("See the board", url)] : []),
+    ...(code && !claim ? [paragraph(`Your code: ${code}. Redeem it in your ${d.sponsor} account.`)] : []),
+    claim ? button("Claim your credits", claim) : code ? button(`Open ${d.sponsor}`, SPONSOR_URL) : button("See the board", url),
+    ...(code ? [textLink("See the board", url)] : []),
     textLink("How scoring and checks work", rulesUrl),
   ];
   const html = renderLayout({ title: subject, preheader, body: body.join("\n"), reason, links });
@@ -55,7 +56,7 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
       subject,
       "",
       line,
-      ...(code ? ["", claim ? `Claim your credits: ${claim}` : `Your code: ${code}`] : []),
+      ...(code ? ["", claim ? `Claim your credits: ${claim}` : `Your code: ${code}`, ...(claim ? [] : [`Redeem it in your ${d.sponsor} account: ${SPONSOR_URL}`])] : []),
       "",
       `See the board: ${url}`,
       "",
@@ -65,6 +66,13 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
     links,
   });
   return { subject, preheader, html, text };
+}
+
+/** The week's coupon from PRIZE_CODES ("W1,W2,W3,W4", week 1 = BATTLE_START), or null. */
+export function weekCode(raw: string | undefined, week: string): string | null {
+  const codes = (raw ?? "").split(",").map((c) => c.trim());
+  const code = codes[battleWeekNumber(week) - 1];
+  return code ? code : null;
 }
 
 /**

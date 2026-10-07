@@ -11,7 +11,7 @@ vi.mock("../notifications", () => ({
   }),
 }));
 
-import { publishRefusal, renderPrizeWinnerEmail, sendPrizeWinners, type PrizeWinnerEmailData } from "./towns-prize";
+import { publishRefusal, renderPrizeWinnerEmail, sendPrizeWinners, weekCode, type PrizeWinnerEmailData } from "./towns-prize";
 import { PREVIEW_LINKS, TRANSACTIONAL_PREVIEW_LINKS } from "../email/previews/types";
 
 const GLORY: PrizeWinnerEmailData = { week: 2, sponsor: null, delivery: "reply" };
@@ -46,8 +46,21 @@ describe("renderPrizeWinnerEmail", () => {
     expect(e.text).not.toContain("Reply with");
   });
 
-  it("sponsor + a plain code prints it", () => {
-    expect(render({ ...CODE, code: "GITCITY-ABC" }).text).toContain("Your code: GITCITY-ABC");
+  it("sponsor + a plain code prints it and links Firecrawl", () => {
+    const e = render({ ...CODE, code: "GITCITY-ABC" });
+    expect(e.text).toContain("Your code: GITCITY-ABC");
+    expect(e.text).toContain("Redeem it in your Firecrawl account: https://www.firecrawl.dev/app");
+    expect(e.html).toContain("Open Firecrawl");
+  });
+
+  it("picks the week's code from PRIZE_CODES", () => {
+    const raw = "W1CODE, W2CODE,W3CODE,W4CODE";
+    expect(weekCode(raw, "2026-10-12")).toBe("W1CODE");
+    expect(weekCode(raw, "2026-10-19")).toBe("W2CODE");
+    expect(weekCode(raw, "2026-11-02")).toBe("W4CODE");
+    expect(weekCode(raw, "2026-11-09")).toBeNull();
+    expect(weekCode(undefined, "2026-10-12")).toBeNull();
+    expect(weekCode("", "2026-10-12")).toBeNull();
   });
 
   it("never talks about money, payment or raffles", () => {

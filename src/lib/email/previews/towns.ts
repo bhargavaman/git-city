@@ -48,7 +48,7 @@ export const TOWNS_PREVIEWS: EmailPreviews = {
   "battle-result-won": () => renderBattleResultEmail({ ...BATTLE, side: "claude", mine: 131 }, PREVIEW_LINKS),
   "battle-result-tie": () => renderBattleResultEmail({ ...BATTLE, winner: null, codex: 84, mine: 0 }, PREVIEW_LINKS),
   // forceSend: the engine sends these without an unsubscribe link.
-  "prize-winner": () => renderPrizeWinnerEmail({ week: 1, sponsor: "Firecrawl", delivery: "code", code: "https://firecrawl.dev" }, TRANSACTIONAL_PREVIEW_LINKS),
+  "prize-winner": () => renderPrizeWinnerEmail({ week: 1, sponsor: "Firecrawl", delivery: "code", code: "GCTOWNS-SAMPLE" }, TRANSACTIONAL_PREVIEW_LINKS),
   "prize-winner-glory": () => renderPrizeWinnerEmail({ week: 1, sponsor: null, delivery: "reply" }, TRANSACTIONAL_PREVIEW_LINKS),
   "town-joined": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: true }, PREVIEW_LINKS),
   "town-joined-no-emblem": () => renderLeagueJoinedEmail({ ...TOWN, inviteeLogin: "pedrohenrique", countsForBuilder: false }, PREVIEW_LINKS),

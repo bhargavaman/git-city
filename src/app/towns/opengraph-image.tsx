@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { OG, building } from "@/lib/og/devHero";
 import { BATTLE_START, BATTLE_START_LABEL, RIVALRY } from "@/lib/towns/rivalry";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { SPONSOR } from "@/lib/towns/sponsor";
 
 export const alt = "Claude vs Codex - Git City Towns";
 export const size = { width: 1200, height: 630 };
@@ -59,6 +60,8 @@ function backdrop(left: string, right: string) {
 
 export default async function Image() {
   const font = await readFile(join(process.cwd(), "public/fonts/Silkscreen-Regular.ttf"));
+  // The presenting sponsor's wordmark, inlined (the footer shows it in place of the URL).
+  const sponsorLogo = SPONSOR ? `data:image/png;base64,${(await readFile(join(process.cwd(), "public", SPONSOR.wordmarkPng))).toString("base64")}` : null;
   const [a, b] = RIVALRY;
   const picked = await pickedCounts();
   const BW = 210;
@@ -158,7 +161,14 @@ export default async function Image() {
             <span style={{ fontSize: 26, color: OG.cream }}>GIT</span>
             <span style={{ fontSize: 26, color: OG.accent }}>CITY</span>
           </div>
-          <div style={{ display: "flex", fontSize: 16, color: OG.muted }}>THEGITCITY.COM/TOWNS</div>
+          {SPONSOR && sponsorLogo ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <span style={{ fontSize: 16, color: OG.muted }}>PRESENTED BY</span>
+              <img src={sponsorLogo} width={Math.round(26 * SPONSOR.ratio)} height={26} alt={SPONSOR.name} />
+            </div>
+          ) : (
+            <div style={{ display: "flex", fontSize: 16, color: OG.muted }}>THEGITCITY.COM/TOWNS</div>
+          )}
         </div>
       </div>
     ),

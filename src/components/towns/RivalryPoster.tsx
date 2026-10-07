@@ -12,6 +12,7 @@ import { Avatar, fmt } from "@/components/league/hud/shared";
 import { BATTLE_START, BATTLE_START_LABEL, timeUntil } from "@/lib/towns/rivalry";
 import type { BattleSide, BattleState } from "@/lib/towns/battle";
 import { battleLead, resultLine, scoreShare } from "@/lib/towns/battle-sides";
+import PresentedBy from "./PresentedBy";
 import { SIDES } from "@/lib/towns/battle-rules";
 import type { GridTown } from "@/lib/towns/discover";
 import { GridTownCard } from "./TownCard";
@@ -134,6 +135,7 @@ export default function RivalryPoster({
             <span className="text-xl text-dim sm:text-3xl">vs</span>
             <span style={{ color: sides[1].color }}>{sides[1].name}</span>
           </h1>
+          <PresentedBy className="mt-3" />
           <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-balance text-cream normal-case sm:text-lg">
             {result ??
               (mine === null

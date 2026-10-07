@@ -6,6 +6,7 @@ import { SIDES } from "@/lib/towns/battle-rules";
 import { getPlayRules } from "@/lib/towns/play-rules-server";
 import { RULES_META, rulesCopy } from "./copy";
 import Countdown from "./Countdown";
+import PresentedBy from "@/components/towns/PresentedBy";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,10 @@ export default async function TownsRulesPage() {
 
       <div className="mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-12">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-4xl text-cream sm:text-5xl">Rules</h1>
+          <div>
+            <h1 className="text-4xl text-cream sm:text-5xl">Rules</h1>
+            <PresentedBy className="mt-2" />
+          </div>
           <p className="border-[3px] border-border bg-bg-raised px-3 py-2 text-xs text-cream">
             {t.status.text}
             {t.status.endsAt !== null && (

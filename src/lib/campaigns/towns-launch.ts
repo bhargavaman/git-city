@@ -2,6 +2,7 @@ import { EMAIL_BASE_URL, button, heading, heroImage, paragraph, spacer, trackedU
 import { renderLayout, renderText } from "../email/layout";
 import type { CampaignDefinition, CampaignRenderContext } from "./types";
 import { PRIZE_CREDITS, PRIZE_SPONSOR, PRIZE_WINNERS } from "../towns/play-rules";
+import { SPONSOR } from "../towns/sponsor";
 
 const CAMPAIGN = "towns_launch";
 
@@ -25,6 +26,7 @@ function announce(ctx: CampaignRenderContext) {
     body: [heading("Claude vs Codex"), ...lines.map((l) => paragraph(l)), button("Pick your side", townsUrl)].join("\n"),
     reason,
     links: ctx.links,
+    sponsor: SPONSOR,
   });
   const text = renderText({ lines: ["Claude vs Codex", "", ...lines.flatMap((l) => [l, ""]), `Pick your side: ${townsUrl}`], reason, links: ctx.links });
   return { subject, preheader, html, text };

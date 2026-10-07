@@ -6,7 +6,8 @@ import { renderLayout, renderText, type EmailLinks } from "../email/layout";
 import { BATTLE_START, RIVALRY } from "../towns/rivalry";
 import { getPlayWeekRow } from "../towns/play-load";
 import { SIDES, battleWeekNumber, type Side } from "../towns/battle-rules";
-import { RULES_PATH } from "../towns/play-rules";
+import { PRIZE_CREDITS, PRIZE_SPONSOR, PRIZE_WINNERS, RULES_PATH } from "../towns/play-rules";
+import { SPONSOR } from "../towns/sponsor";
 
 // Claude vs Codex emails, both from the Monday close: "The battle is on" the
 // Monday the first battle week opens, then each Monday the week's result for
@@ -32,7 +33,8 @@ export interface BattleStartEmailData {
 function startHeader(d: BattleStartEmailData) {
   // The picture already says it counts from today.
   const line = `You're on ${nameOf(d.side)}. Everything you do in Git City scores this week.`;
-  return { subject: "The battle is on", preheader: line, line };
+  const prize = PRIZE_SPONSOR ? ` The top ${PRIZE_WINNERS} each week win ${PRIZE_CREDITS.toLocaleString("en-US")} ${PRIZE_SPONSOR} credits.` : "";
+  return { subject: "The battle is on", preheader: line, line: line + prize };
 }
 
 export function renderBattleStartEmail(d: BattleStartEmailData, links: EmailLinks) {
@@ -47,6 +49,7 @@ export function renderBattleStartEmail(d: BattleStartEmailData, links: EmailLink
     body: [paragraph(line), button("See the battle", url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
+    sponsor: SPONSOR,
   });
   const text = renderText({
     lines: [subject, "", line, "", `See the battle: ${url}`, "", `How scoring and checks work: ${rulesUrl}`],
@@ -122,6 +125,7 @@ export function renderBattleResultEmail(d: BattleResultEmailData, links: EmailLi
     body: [paragraph(line), button(cta, url), textLink("How scoring and checks work", rulesUrl)].join("\n"),
     reason,
     links,
+    sponsor: SPONSOR,
   });
   const text = renderText({
     lines: [subject, "", line, "", `${cta}: ${url}`, "", `How scoring and checks work: ${rulesUrl}`],

@@ -7,6 +7,7 @@ import { BATTLE_START } from "../towns/rivalry";
 import { battleWeekNumber } from "../towns/battle-rules";
 import { PRIZE_CREDITS, PRIZE_DELIVERY, PRIZE_SPONSOR, PRIZE_WINNERS, RULES_PATH } from "../towns/play-rules";
 import type { PlayEntry } from "../towns/play-score";
+import { SPONSOR } from "../towns/sponsor";
 
 // The week's winners, once, from the Monday close (play-publish.ts). Three
 // versions: sponsor + the winner's coupon in the email, sponsor + winners reply
@@ -51,7 +52,7 @@ export function renderPrizeWinnerEmail(d: PrizeWinnerEmailData, links: EmailLink
     ...(code ? [textLink("See the board", url)] : []),
     textLink("How scoring and checks work", rulesUrl),
   ];
-  const html = renderLayout({ title: subject, preheader, body: body.join("\n"), reason, links });
+  const html = renderLayout({ title: subject, preheader, body: body.join("\n"), reason, links, sponsor: d.sponsor ? SPONSOR : null });
   const text = renderText({
     lines: [
       subject,

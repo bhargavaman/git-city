@@ -32,6 +32,8 @@ export interface LayoutOptions {
   /** Why this person got the email, shown in the footer. */
   reason: string;
   links: EmailLinks;
+  /** An event's presenting sponsor, at the right of the Git City wordmark: "presented by" and its wordmark. */
+  sponsor?: { name: string; url: string; wordmarkPng: string; ratio: number } | null;
 }
 
 // Invisible filler after the preheader so clients don't pull body text into the preview.
@@ -42,6 +44,10 @@ export function renderLayout(opts: LayoutOptions): string {
     ? `<tr><td class="px" style="padding:0 20px;">${opts.hero}</td></tr>`
     : "";
   const bodyTop = opts.hero ? 32 : 8;
+  const s = opts.sponsor;
+  const sponsor = s
+    ? `<td valign="middle" align="right"><a href="${escapeHtml(s.url)}" style="text-decoration:none; font-family:${FONT}; font-size:12px; color:${COLORS.muted};"><span style="vertical-align:middle;">presented by&nbsp;&nbsp;</span><img src="${EMAIL_BASE_URL}${s.wordmarkPng}" width="${Math.round(18 * s.ratio)}" height="18" alt="${escapeHtml(s.name)}" style="display:inline-block; vertical-align:middle; border:0; color:${COLORS.cream}; font-family:${FONT}; font-size:13px; font-weight:700;"></a></td>`
+    : "";
   const footer = footerLinks(opts.links)
     .map((l) => `<a href="${escapeHtml(l.url)}" style="color:${COLORS.muted}; text-decoration:underline;">${l.label}</a>`)
     .join(" &nbsp;&middot;&nbsp; ");
@@ -70,7 +76,10 @@ export function renderLayout(opts: LayoutOptions): string {
 <tr><td align="center" style="padding:32px 0 40px;">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:600px;">
     <tr><td class="px" style="padding:0 20px 20px;">
-      <a href="${EMAIL_BASE_URL}"><img src="${EMAIL_BASE_URL}/email/wordmark.png" width="116" height="24" alt="Git City" style="display:block; border:0; color:${COLORS.cream}; font-family:${FONT}; font-size:16px; font-weight:700;"></a>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td valign="middle"><a href="${EMAIL_BASE_URL}"><img src="${EMAIL_BASE_URL}/email/wordmark.png" width="116" height="24" alt="Git City" style="display:block; border:0; color:${COLORS.cream}; font-family:${FONT}; font-size:16px; font-weight:700;"></a></td>
+        ${sponsor}
+      </tr></table>
     </td></tr>
     ${hero}
     <tr><td class="px" style="padding:${bodyTop}px 20px 0;">

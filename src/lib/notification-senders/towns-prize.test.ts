@@ -28,20 +28,26 @@ describe("renderPrizeWinnerEmail", () => {
     const e = render(GLORY);
     expect(e.html).not.toMatch(/firecrawl|credits/i);
     expect(e.text).not.toMatch(/firecrawl|credits/i);
-    expect(e.text).toContain("You're one of the 10 players of week 2 in Git City Towns.");
+    expect(e.text).toContain("You're one of the 5 players of week 2 in Git City Towns.");
     expect(e.text).toContain("Your login is on /towns and in our Monday post.");
   });
 
   it("sponsor + reply asks for the sponsor account email", () => {
     const e = render(REPLY);
-    expect(e.text).toContain("You won 10,000 Firecrawl credits in Git City Towns.");
+    expect(e.text).toContain("You won 2,500 Firecrawl credits in Git City Towns.");
     expect(e.text).toContain("Reply with the email of your Firecrawl account and we'll pass it on.");
   });
 
-  it("sponsor + code says the code comes separately and asks for no reply", () => {
-    const e = render(CODE);
-    expect(e.text).toContain("Your code comes in a separate email.");
+  it("sponsor + a coupon link makes the claim button", () => {
+    const e = render({ ...CODE, code: "https://firecrawl.dev/c/ABC" });
+    expect(e.text).toContain("You won 2,500 Firecrawl credits in Git City Towns.");
+    expect(e.text).toContain("Claim your credits: https://firecrawl.dev/c/ABC");
+    expect(e.html).toContain('href="https://firecrawl.dev/c/ABC"');
     expect(e.text).not.toContain("Reply with");
+  });
+
+  it("sponsor + a plain code prints it", () => {
+    expect(render({ ...CODE, code: "GITCITY-ABC" }).text).toContain("Your code: GITCITY-ABC");
   });
 
   it("never talks about money, payment or raffles", () => {
@@ -100,11 +106,12 @@ describe("sendPrizeWinners", () => {
     delete process.env.PRIZE_REPLY_TO;
   });
 
-  it("sends one forced, deduped email per winner and counts the successes", async () => {
-    process.env.PRIZE_REPLY_TO = "samuel@thegitcity.com";
+  it("sends one forced, deduped email per winner with a code, and holds the rest", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const n = await sendPrizeWinners("2026-10-19", [
-      { developer_id: 7, login: "pyromains" },
-      { developer_id: 12, login: "srizzon" },
+      { developer_id: 7, login: "pyromains", code: "https://firecrawl.dev/c/A" },
+      { developer_id: 12, login: "srizzon", code: "https://firecrawl.dev/c/B" },
+      { developer_id: 13, login: "nocode", code: null },
     ]);
     expect(n).toBe(2);
     expect(sent.map((p) => p.dedupKey)).toEqual(["play_prize:7:2026-10-19", "play_prize:12:2026-10-19"]);
@@ -114,7 +121,7 @@ describe("sendPrizeWinners", () => {
       expect(p.forceSend).toBe(true);
       expect(p.channels).toEqual(["email"]);
       expect(p.title).toBe("You won week 2 of Git City Towns");
-      expect(p.replyTo).toBe("samuel@thegitcity.com");
+      expect(p.replyTo).toBeUndefined();
     }
   });
 
